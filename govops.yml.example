@@ -1,0 +1,212 @@
+# govops.yml — GovOps GitHub Layer configuration
+#
+# Copy this file to your project repository root as govops.yml
+# and fill in the values. Fields marked REQUIRED must be completed
+# before the project can receive work.
+#
+# Plain-language guide to every term: docs/vocabulary.md
+# Full configuration reference: docs/configuration-reference.md
+
+# The version of the GovOps layer this project is running under.
+# REQUIRED. Use 0.9 unless a later version has been released.
+govops_version: "0.9"
+
+# --- Governance scope ---
+# Declares what GitHub entities this initiative spans and which
+# repository holds the canonical GOVERNANCE.md.
+# One GOVERNANCE.md per initiative regardless of how many repositories
+# or project boards are involved.
+governance_scope:
+
+  # What is the primary delivery substrate for this initiative?
+  # REQUIRED. Choose one:
+  # repository     — a single GitHub repository
+  # github-project — a GitHub Projects board (may span multiple repos)
+  # both           — a Projects board with a designated canonical repository
+  substrate: "repository"
+
+  # The repository that holds the canonical GOVERNANCE.md for this initiative.
+  # REQUIRED. Format: org/repo
+  # For single-repository initiatives: this repository.
+  # For GitHub Project board initiatives: the designated canonical repository.
+  # All other repositories in the initiative reference back to this one.
+  canonical_repository: ""
+
+  # If substrate is github-project or both, provide the board URL.
+  # Format: https://github.com/orgs/ORG/projects/N
+  # Leave blank for single-repository initiatives.
+  github_project_url: ""
+
+  # If this initiative spans multiple repositories beyond the canonical one,
+  # list them here. Each additional repository should have a minimal
+  # GOVERNANCE.md that points back to the canonical record.
+  # Leave as empty list for single-repository initiatives.
+  additional_repositories: []
+
+# --- Project classification ---
+initiative:
+
+  # How much governance does this project require?
+  # REQUIRED. 1 = low risk. 2 = standard. 3 = high risk. 4 = organisation-wide.
+  tier: 2
+
+  # How easily can the main outcome of this project be undone?
+  # REQUIRED. reversible | conditional | irreversible
+  # When in doubt, choose the more cautious option.
+  decision_class: "conditional"
+
+  # The maximum level of identity assurance achievable on this platform.
+  # REQUIRED. GitHub's maximum is 2. Do not increase this above 2 unless
+  # you have set up an out-of-band identity verification process.
+  # See docs/ial-out-of-band.md for instructions.
+  ial_ceiling: 2
+
+  # Minimum identity assurance required to approve a change to the main branch.
+  ial_required_for_merge: 2
+
+  # Minimum identity assurance required to approve a production deployment.
+  ial_required_for_deploy: 2
+
+  # Who is authorised to invoke the rollback procedure if a deployment
+  # causes problems? REQUIRED if decision_class is irreversible.
+  # Format: @github-username
+  rollback_authority: "@username"
+
+  # Which GitHub environments are considered "production"?
+  # The operational readiness gate activates for environments matching this pattern.
+  # Default covers the most common names. Change if your organisation uses
+  # different environment names.
+  production_environment_pattern: "production|prod|release"
+
+
+# --- Permanent record configuration ---
+ledger:
+
+  # The address of your permanent record system.
+  # REQUIRED. This is where governance records are written.
+  # If you do not have a permanent record system yet, see bridge/README.md.
+  endpoint: ""
+
+  # The name of the GitHub secret that contains the access key
+  # for your permanent record system. REQUIRED.
+  # Create this secret in your repository or organisation settings.
+  auth_secret: "LEDGER_API_KEY"
+
+  # A unique identifier for this project's record chain.
+  # REQUIRED. Once set, do not change it — it identifies the chain
+  # of records for this project.
+  # Recommended format: organisation-projectname-year
+  # Example: acme-invoice-reconciliation-2026
+  chain_id: ""
+
+  # The security algorithm used to sign governance records.
+  # Default is dilithium3 — a post-quantum security standard.
+  # Do not change this unless you have a specific reason.
+  signature_algorithm: "dilithium3"
+
+  # Optional. A notification address for governance alerts.
+  # Governance alerts (exceptions, bypass events) will be sent here.
+  # Supports Slack, Teams, or any webhook endpoint.
+  alert_channel: ""
+
+
+# --- Portfolio configuration ---
+portfolio:
+
+  # A label that identifies all repositories belonging to this portfolio.
+  # Used by the portfolio health report to find related projects.
+  # Leave blank if this project is not part of a portfolio.
+  org_label: ""
+
+  # How often should the portfolio health report run?
+  # Default: every Monday at 09:00 UTC.
+  # This is a cron schedule — see docs/configuration-reference.md
+  # if you need to change it.
+  health_report_schedule: "0 9 * * 1"
+
+  # Optional. The repository where portfolio health reports should be
+  # posted as issues for governance review.
+  # Format: org/repo  Example: acme-corp/portfolio-governance
+  portfolio_repo: ""
+
+
+# --- Governance settings ---
+governance:
+
+  # Block execution if the project's uncertainty is classified as
+  # "ambiguity" and no resolution record has been provided.
+  # Strongly recommended: true
+  require_uncertainty_classification: true
+
+  # Block milestones from closing without a completed governance checkpoint.
+  # Strongly recommended: true
+  require_milestone_checkpoints: true
+
+  # Block project archiving without a completed post-project review.
+  # Strongly recommended: true
+  require_pir: true
+
+  # Block project archiving without a completed asset handover record.
+  # Strongly recommended: true
+  require_asset_handover: true
+
+  # How many days before an open exception issue is flagged as overdue.
+  # Maximum recommended: 30 days.
+  exception_expiry_days: 14
+
+  # How many times the same type of exception must occur before the
+  # portfolio health report flags it as a pattern requiring a
+  # governance standards review.
+  exception_pattern_threshold: 3
+
+
+# --- Delivery system ---
+# The way this project is being run is a governance decision.
+# It must be recorded here and approved. See Section 10.5 of the
+# practitioner guide for the selection framework.
+delivery_system:
+
+  # How is the project's work structured?
+  # REQUIRED. staged-gate | iterative | parallel-track | hybrid
+  pattern: ""
+
+  # Which specific delivery framework is being used?
+  # REQUIRED. scrum | kanban | prince2 | safe | internal | hybrid
+  # Use 'internal' for your organisation's own named framework.
+  # Use 'hybrid' only with a description in the field below.
+  framework: ""
+
+  # Required if framework is 'hybrid' or 'internal'.
+  # Describe exactly what practices are being used and how they combine.
+  framework_description: ""
+
+  # How do delivery cycles connect to governance review checkpoints?
+  # REQUIRED. Be specific.
+  # Example: "Monthly governance review at the end of every second two-week sprint."
+  governance_cadence: ""
+
+  # What delivery framework has the organisation officially mandated?
+  # Leave blank if the organisation has no official mandate.
+  org_mandate: ""
+
+  # Does this project use a different approach from the mandate above?
+  # true or false
+  deviation_from_mandate: false
+
+  # REQUIRED if deviation_from_mandate is true.
+  # Who approved the departure from the organisational mandate?
+  # Must be the same authority who approves scope changes.
+  # Format: @github-username
+  deviation_approved_by: ""
+
+  # REQUIRED if deviation_from_mandate is true.
+  # Why is the organisational mandate not appropriate for this project?
+  deviation_rationale: ""
+
+
+# --- Runner configuration ---
+runners:
+  # Which type of server should the governance workflows run on?
+  # Default uses GitHub's standard shared infrastructure.
+  # Change to a self-hosted runner address if required by your organisation.
+  default: "ubuntu-latest"
