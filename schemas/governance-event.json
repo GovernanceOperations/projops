@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GovernanceOperations/projops/schemas/governance-event.json",
+  "title": "GovOps Governance Event",
+  "description": "The six-field atomic record conforming to GOS §6.6",
+  "type": "object",
+  "required": ["identity", "timestamp", "type", "payload", "signature", "integrity_reference"],
+  "additionalProperties": false,
+  "properties": {
+    "identity": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4 — unique, non-reusable identifier for this event"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 with microsecond precision, cryptographically bound to authorised time source"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "observation", "verification", "evaluation", "propose",
+        "approval", "execute", "record", "review", "adapt",
+        "alert", "escalation", "system"
+      ],
+      "description": "Category of governance operation — maps to nine-step execution cycle [GOS §6.1]"
+    },
+    "payload": {
+      "type": "object",
+      "required": ["source", "repository", "actor"],
+      "properties": {
+        "source": { "type": "string" },
+        "github_event": { "type": ["string", "null"] },
+        "repository": { "type": "string", "pattern": "^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$" },
+        "actor": { "type": "string" },
+        "govops_workflow": { "type": ["string", "null"] },
+        "decision_contract_ref": { "type": ["string", "null"] },
+        "data": { "type": ["object", "string", "null"] }
+      },
+      "description": "Full content of the governance operation"
+    },
+    "signature": {
+      "type": "string",
+      "description": "Post-quantum cryptographic signature of all preceding fields [GOS §11.2]"
+    },
+    "integrity_reference": {
+      "type": "string",
+      "description": "Certification hash of the immediately preceding event in this chain"
+    }
+  }
+}

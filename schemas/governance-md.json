@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GovernanceOperations/projops/schemas/governance-md.json",
+  "title": "GovOps GOVERNANCE.md Validation Schema",
+  "description": "Required fields for a valid GOVERNANCE.md initiative record",
+  "type": "object",
+  "comment": "Validated via markdown field extraction in governance-init-check.yml",
+  "required_fields": [
+    "Governance substrate",
+    "Canonical repository",
+    "Initiative title",
+    "Repository",
+    "Decision Contract reference",
+    "Decision class",
+    "Operational tier",
+    "Problem being solved",
+    "Outcome targeted",
+    "Constraints accepted",
+    "Success criteria",
+    "Primary classification",
+    "Classification rationale",
+    "Sponsoring authority",
+    "Approves scope changes",
+    "Authorises compliance exceptions",
+    "Authority to close or pause the initiative",
+    "Rollback authority",
+    "Delivery pattern",
+    "Execution framework",
+    "Governance cadence",
+    "Selection rationale",
+    "Approved by",
+    "Deviation from organisational mandate",
+    "Current status",
+    "Initiative opened"
+  ],
+  "enum_constraints": {
+    "Governance substrate": ["repository", "github-project", "both"],
+    "Decision class": ["reversible", "conditional", "irreversible"],
+    "Operational tier": ["1", "2", "3", "4"],
+    "Primary classification": ["aleatory", "epistemic", "ambiguity"],
+    "Delivery pattern": ["staged-gate", "iterative", "parallel-track", "hybrid"],
+    "Execution framework": ["scrum", "kanban", "prince2", "safe", "internal", "hybrid"],
+    "Deviation from organisational mandate": ["yes", "no"],
+    "Current status": ["active", "paused", "closing", "closed"]
+  },
+  "conditional_requirements": {
+    "if Governance substrate == github-project or both": "GitHub Project board must be non-empty",
+    "if Governance substrate == both": "Canonical repository must be non-empty",
+    "if Primary classification == ambiguity": "Ambiguity resolution reference must be non-empty",
+    "if Execution framework == hybrid or internal": "Framework description must be non-empty",
+    "if Deviation from organisational mandate == yes": [
+      "Deviation rationale must be non-empty",
+      "Deviation approved by must be non-empty"
+    ]
+  },
+  "consistency_checks": {
+    "if Primary classification == ambiguity": "Delivery pattern must be absent or 'none'",
+    "decision_contract_ref_format": "^[A-Z]{2,}-[0-9]{4}-[0-9]{4}-[A-Z0-9]{8}$",
+    "github_project_url_format": "^https://github.com/orgs/[^/]+/projects/[0-9]+$"
+  }
+}

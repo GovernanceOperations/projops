@@ -1,0 +1,44 @@
+# GitHub App manifest for GovOps Ledger Bridge
+# Use this manifest to create the App in your GitHub organisation:
+# https://github.com/organizations/<org>/settings/apps/new?manifest=<url-encoded-manifest>
+
+name: GovOps Ledger Bridge
+description: >
+  Translates GitHub events into GovOps Governance Events and writes them
+  to a configured Immutable Ledger endpoint. Required for Memory Layer
+  compliance under GOS §6.6. Covers both repository-level and
+  GitHub Projects-level governance lifecycles.
+url: https://github.com/GovernanceOperations/projops
+hook_attributes:
+  active: true
+redirect_url: https://github.com/GovernanceOperations/projops
+default_permissions:
+  contents: read
+  issues: write
+  pull_requests: write
+  deployments: read
+  checks: read
+  metadata: read
+  members: read
+  organization_administration: read
+  # Required for GitHub Projects event coverage
+  organization_projects: read
+  repository_projects: read
+default_events:
+  # Repository-level events
+  - push
+  - pull_request
+  - pull_request_review
+  - issues
+  - milestone
+  - deployment
+  - deployment_status
+  - workflow_run
+  - check_run
+  - repository
+  - member
+  - organization
+  # GitHub Projects events (ProjectsV2 — organisation-level boards)
+  - projects_v2
+  - projects_v2_item
+public: true

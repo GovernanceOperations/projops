@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GovernanceOperations/projops/schemas/govops-config.json",
+  "title": "GovOps govops.yml Configuration Schema",
+  "type": "object",
+  "required": ["govops_version", "governance_scope", "initiative", "ledger"],
+  "properties": {
+    "govops_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$"
+    },
+    "governance_scope": {
+      "type": "object",
+      "required": ["substrate", "canonical_repository"],
+      "properties": {
+        "substrate": {
+          "type": "string",
+          "enum": ["repository", "github-project", "both"],
+          "description": "The primary delivery substrate for this initiative"
+        },
+        "canonical_repository": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$",
+          "description": "The repository holding the canonical GOVERNANCE.md"
+        },
+        "github_project_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/orgs/[^/]+/projects/[0-9]+$",
+          "description": "Required when substrate is github-project or both"
+        },
+        "additional_repositories": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$" },
+          "description": "Other repositories in a multi-repository initiative"
+        }
+      },
+      "if": { "properties": { "substrate": { "enum": ["github-project", "both"] } } },
+      "then": { "required": ["github_project_url"] }
+    },
+    "initiative": {
+      "type": "object",
+      "required": ["tier", "decision_class", "ial_ceiling"],
+      "properties": {
+        "tier": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "decision_class": { "type": "string", "enum": ["reversible", "conditional", "irreversible"] },
+        "ial_ceiling": { "type": "integer", "minimum": 1, "maximum": 2,
+          "description": "GitHub platform maximum is 2. Values above 2 require documented out-of-band mechanism." },
+        "ial_required_for_merge": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "ial_required_for_deploy": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "rollback_authority": { "type": "string" },
+        "production_environment_pattern": { "type": "string" }
+      }
+    },
+    "ledger": {
+      "type": "object",
+      "required": ["endpoint", "auth_secret", "chain_id"],
+      "properties": {
+        "endpoint": { "type": "string", "format": "uri" },
+        "auth_secret": { "type": "string" },
+        "chain_id": { "type": "string", "minLength": 1 },
+        "signature_algorithm": { "type": "string", "default": "dilithium3" },
+        "alert_channel": { "type": "string" }
+      }
+    },
+    "portfolio": {
+      "type": "object",
+      "properties": {
+        "org_label": { "type": "string" },
+        "health_report_schedule": { "type": "string" },
+        "portfolio_repo": { "type": "string", "pattern": "^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$" }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "properties": {
+        "require_uncertainty_classification": { "type": "boolean", "default": true },
+        "require_milestone_checkpoints": { "type": "boolean", "default": true },
+        "require_pir": { "type": "boolean", "default": true },
+        "require_asset_handover": { "type": "boolean", "default": true },
+        "exception_expiry_days": { "type": "integer", "minimum": 1, "maximum": 90 },
+        "exception_pattern_threshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "delivery_system": {
+      "type": "object",
+      "required": ["pattern", "framework", "governance_cadence"],
+      "properties": {
+        "pattern": { "type": "string", "enum": ["staged-gate", "iterative", "parallel-track", "hybrid"] },
+        "framework": { "type": "string", "enum": ["scrum", "kanban", "prince2", "safe", "internal", "hybrid"] },
+        "framework_description": { "type": "string" },
+        "governance_cadence": { "type": "string", "minLength": 10 },
+        "org_mandate": { "type": "string" },
+        "deviation_from_mandate": { "type": "boolean", "default": false },
+        "deviation_approved_by": { "type": "string" },
+        "deviation_rationale": { "type": "string" }
+      },
+      "if": { "properties": { "deviation_from_mandate": { "const": true } } },
+      "then": { "required": ["deviation_approved_by", "deviation_rationale"] }
+    },
+    "runners": {
+      "type": "object",
+      "properties": {
+        "default": { "type": "string", "default": "ubuntu-latest" }
+      }
+    }
+  }
+}
