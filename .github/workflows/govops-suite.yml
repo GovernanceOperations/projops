@@ -1,0 +1,132 @@
+name: GovOps Suite — Composite Governance Layer
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        description: 'Path to govops.yml in the calling repository'
+        required: true
+        type: string
+
+# Event coverage:
+# repository     — repository archived (triggers PIR + asset handover)
+# projects_v2   — GitHub Project closed (triggers PIR + asset handover)
+# milestone      — milestone closed (triggers checkpoint)
+# pull_request   — opened (init check), closed+merged (PR event), review (IAL check)
+# deployment     — production deployment (OR gate + rollback gate)
+# issues         — governance-scope labelled (uncertainty check)
+# workflow_run   — governance workflow skipped (exception logger)
+# check_run      — required check bypassed (exception logger)
+# schedule       — portfolio health aggregation
+# push           — first push to protected branch (init check)
+
+jobs:
+
+  governance-init:
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.action == 'opened')
+    uses: GovernanceOperations/projops/.github/workflows/governance-init-check.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+    secrets: inherit
+
+  uncertainty-classification:
+    if: >
+      github.event_name == 'milestone' ||
+      (github.event_name == 'issues' && contains(github.event.label.name, 'governance-scope'))
+    uses: GovernanceOperations/projops/.github/workflows/uncertainty-classification-check.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+    secrets: inherit
+
+  pr-governance-event:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true
+    uses: GovernanceOperations/projops/.github/workflows/pr-governance-event.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+      pr-number: ${{ github.event.pull_request.number }}
+    secrets: inherit
+
+  ial-ceiling-check:
+    if: >
+      github.event_name == 'pull_request_review' ||
+      github.event_name == 'deployment_review'
+    uses: GovernanceOperations/projops/.github/workflows/ial-ceiling-check.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+      action-type: ${{ github.event_name == 'deployment_review' && 'deploy' || 'merge' }}
+    secrets: inherit
+
+  operational-readiness-gate:
+    if: github.event_name == 'deployment'
+    uses: GovernanceOperations/projops/.github/workflows/operational-readiness-gate.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+      environment: ${{ github.event.deployment.environment }}
+      deployment-id: ${{ github.event.deployment.id }}
+    secrets: inherit
+
+  rollback-readiness-gate:
+    if: github.event_name == 'deployment'
+    uses: GovernanceOperations/projops/.github/workflows/rollback-readiness-gate.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+      deployment-id: ${{ github.event.deployment.id }}
+      operation-class: ${{ vars.GOVOPS_OPERATION_CLASS || 'reversible' }}
+    secrets: inherit
+
+  milestone-governance-checkpoint:
+    if: github.event_name == 'milestone' && github.event.action == 'closed'
+    uses: GovernanceOperations/projops/.github/workflows/milestone-governance-checkpoint.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+      milestone-number: ${{ github.event.milestone.number }}
+    secrets: inherit
+
+  exception-logger:
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'skipped') ||
+      github.event_name == 'check_run'
+    uses: GovernanceOperations/projops/.github/workflows/exception-logger.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+    secrets: inherit
+
+  portfolio-health-aggregator:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    uses: GovernanceOperations/projops/.github/workflows/portfolio-health-aggregator.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+      org-name: ${{ github.repository_owner }}
+    secrets: inherit
+
+  # PIR and asset handover trigger on EITHER:
+  # (a) repository archived — single-repository initiative closure
+  # (b) projects_v2 closed — GitHub Project board closure (single or multi-repo)
+  # Both must pass before governed closure is valid.
+
+  pir-trigger:
+    if: >
+      github.event_name == 'repository' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'projects_v2' && github.event.action == 'closed')
+    uses: GovernanceOperations/projops/.github/workflows/pir-trigger.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+      closure-type: ${{ github.event_name == 'projects_v2' && 'project-close' || 'archive' }}
+    secrets: inherit
+
+  asset-handover-validator:
+    if: >
+      github.event_name == 'repository' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'projects_v2' && github.event.action == 'closed')
+    needs: [pir-trigger]
+    uses: GovernanceOperations/projops/.github/workflows/asset-handover-validator.yml@v0.9
+    with:
+      config-path: ${{ inputs.config-path }}
+    secrets: inherit

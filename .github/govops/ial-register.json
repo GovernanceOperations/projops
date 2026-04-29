@@ -1,0 +1,18 @@
+{
+  "_description": "Organisation IAL register. Maintained by the designated governance authority. Read by ial-ceiling-check workflow.",
+  "_format": "Add one entry per organisation member whose verified IAL is above 1.",
+  "_ial_levels": {
+    "1": "Authenticated GitHub user — GitHub login only",
+    "2": "Organisation member with enforced 2FA and SAML SSO — GitHub platform maximum",
+    "3": "External IdP with hardware token linked to GitHub SAML identity — out-of-band approval required",
+    "4": "Physical presence verification by designated governance authority — out-of-band approval required"
+  },
+  "members": {
+    "_example_username": {
+      "ial": 2,
+      "verified_by": "_governance-authority-username",
+      "last_verified": "2026-01-01",
+      "verification_method": "org-2fa-enforced-saml"
+    }
+  }
+}

@@ -1,0 +1,57 @@
+name: GovOps — Uncertainty Classification Check
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+      issue-number:
+        required: false
+        type: number
+      milestone-number:
+        required: false
+        type: number
+
+jobs:
+  uncertainty-classification-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check milestone uncertainty classification
+        if: github.event_name == 'milestone'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MILESTONE_NUMBER="${{ inputs.milestone-number }}"
+          MILESTONE_BODY=$(gh api "repos/${{ github.repository }}/milestones/${MILESTONE_NUMBER}" --jq '.description')
+
+          if ! echo "$MILESTONE_BODY" | grep -qE "uncertainty: (aleatory|epistemic|ambiguity)"; then
+            # Build alert without colon-heavy inline comments to avoid YAML parser issues
+            ALERT_MSG="GOVOPS ALERT - Add uncertainty classification before any issue moves to In Progress."
+            ALERT_MSG="${ALERT_MSG} Valid values are: uncertainty: aleatory OR uncertainty: epistemic OR uncertainty: ambiguity."
+            ALERT_MSG="${ALERT_MSG} See GovernanceOperations/projops Section 2."
+            UPDATED_DESC="${MILESTONE_BODY} ${ALERT_MSG}"
+            gh api "repos/${{ github.repository }}/milestones/${MILESTONE_NUMBER}" \
+              -X PATCH -f "description=${UPDATED_DESC}" 2>/dev/null || true
+            echo "::warning::Milestone #${MILESTONE_NUMBER} has no uncertainty classification. Classification required before work begins."
+          fi
+
+          if echo "$MILESTONE_BODY" | grep -q "uncertainty: ambiguity"; then
+            if ! echo "$MILESTONE_BODY" | grep -q "ambiguity-resolution:"; then
+              echo "::error::Milestone classified as ambiguity but no ambiguity-resolution reference present."
+              echo "::error::Add ambiguity-resolution: <url> to the milestone description before issues can progress."
+              exit 1
+            fi
+          fi
+
+      - name: Write Governance Event
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{\"identity\":\"$(cat /proc/sys/kernel/random/uuid)\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"record\",\"payload\":{\"check\":\"uncertainty-classification\",\"repository\":\"${{ github.repository }}\",\"actor\":\"${{ github.actor }}\"}}" 2>/dev/null || true

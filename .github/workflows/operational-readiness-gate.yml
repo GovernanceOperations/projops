@@ -1,0 +1,74 @@
+name: GovOps — Operational Readiness Gate
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+      environment:
+        required: true
+        type: string
+      deployment-id:
+        required: true
+        type: string
+
+jobs:
+  operational-readiness-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check if production environment
+        id: prod-check
+        run: |
+          PROD_PATTERN=$(grep "production_environment_pattern" ${{ inputs.config-path }} | \
+                         awk -F'"' '{print $2}' || echo "production|prod|release")
+          if echo "${{ inputs.environment }}" | grep -qE "$PROD_PATTERN"; then
+            echo "is_production=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_production=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Find operational readiness checklist issue
+        if: steps.prod-check.outputs.is_production == 'true'
+        id: find-checklist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE=$(gh issue list --repo ${{ github.repository }} \
+            --label "operational-readiness" --state open \
+            --json number,body --limit 5 | jq 'first')
+          if [ -z "$ISSUE" ] || [ "$ISSUE" = "null" ]; then
+            echo "::error::No operational readiness checklist found."
+            echo "::error::Create an issue using the operational-readiness template before deploying to production."
+            exit 1
+          fi
+          echo "issue_number=$(echo $ISSUE | jq '.number')" >> $GITHUB_OUTPUT
+          echo "issue_body=$(echo $ISSUE | jq -c '.body')" >> $GITHUB_OUTPUT
+
+      - name: Validate all five readiness conditions
+        if: steps.prod-check.outputs.is_production == 'true'
+        run: |
+          ISSUE_BODY='${{ steps.find-checklist.outputs.issue_body }}'
+          ERRORS=""
+          for condition in "Process readiness" "Technology readiness" "People readiness" "Compliance readiness" "Rollback readiness"; do
+            if ! echo "$ISSUE_BODY" | grep -q "\[x\].*${condition}"; then
+              ERRORS="${ERRORS}\n  - Not confirmed: ${condition}"
+            fi
+          done
+          if [ -n "$ERRORS" ]; then
+            echo "::error::Operational readiness gate failed. The following conditions are not confirmed:${ERRORS}"
+            echo "::error::Complete the checklist in issue #${{ steps.find-checklist.outputs.issue_number }} before deploying."
+            exit 1
+          fi
+
+      - name: Write Verification Governance Event
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{\"identity\":\"$(cat /proc/sys/kernel/random/uuid)\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"verification\",\"payload\":{\"check\":\"operational-readiness\",\"environment\":\"${{ inputs.environment }}\",\"deployment_id\":\"${{ inputs.deployment-id }}\",\"result\":\"pass\",\"repository\":\"${{ github.repository }}\"}}" 2>/dev/null || true

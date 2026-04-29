@@ -1,0 +1,73 @@
+name: GovOps — PR Governance Event
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+      pr-number:
+        required: true
+        type: number
+
+jobs:
+  pr-governance-event:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract PR metadata
+        id: pr-meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR=$(gh api repos/${{ github.repository }}/pulls/${{ inputs.pr-number }})
+          echo "merger=$(echo $PR | jq -r '.merged_by.login')" >> $GITHUB_OUTPUT
+          echo "title=$(echo $PR | jq -r '.title')" >> $GITHUB_OUTPUT
+          echo "sha=$(echo $PR | jq -r '.merge_commit_sha')" >> $GITHUB_OUTPUT
+          echo "milestone=$(echo $PR | jq -r '.milestone.number // empty')" >> $GITHUB_OUTPUT
+
+          REVIEWERS=$(gh api repos/${{ github.repository }}/pulls/${{ inputs.pr-number }}/reviews \
+            | jq -r '[.[] | select(.state=="APPROVED") | .user.login] | unique | join(",")')
+          echo "approvers=${REVIEWERS}" >> $GITHUB_OUTPUT
+
+          DCR=$(grep -A1 "Decision Contract reference" GOVERNANCE.md 2>/dev/null | tail -1 | sed 's/<!-- .* -->//' | tr -d ' ' || echo "")
+          echo "dcr=${DCR}" >> $GITHUB_OUTPUT
+
+          DECISION_CLASS=$(grep "decision_class" ${{ inputs.config-path }} | awk '{print $2}' | tr -d '"' || echo "reversible")
+          echo "decision_class=${DECISION_CLASS}" >> $GITHUB_OUTPUT
+
+      - name: Write PR Governance Event to Immutable Ledger
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          EVENT_ID=$(cat /proc/sys/kernel/random/uuid)
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.%6NZ")
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{
+              \"identity\": \"${EVENT_ID}\",
+              \"timestamp\": \"${TIMESTAMP}\",
+              \"type\": \"execute\",
+              \"payload\": {
+                \"pr_number\": ${{ inputs.pr-number }},
+                \"pr_title\": \"${{ steps.pr-meta.outputs.title }}\",
+                \"merge_commit_sha\": \"${{ steps.pr-meta.outputs.sha }}\",
+                \"merger\": \"${{ steps.pr-meta.outputs.merger }}\",
+                \"approvers\": \"${{ steps.pr-meta.outputs.approvers }}\",
+                \"operation_class\": \"${{ steps.pr-meta.outputs.decision_class }}\",
+                \"decision_contract_ref\": \"${{ steps.pr-meta.outputs.dcr }}\",
+                \"milestone_ref\": \"${{ steps.pr-meta.outputs.milestone }}\",
+                \"repository\": \"${{ github.repository }}\",
+                \"branch\": \"${{ github.event.pull_request.base.ref }}\"
+              }
+            }" 2>/dev/null || echo "::warning::Ledger write failed for PR #${{ inputs.pr-number }}"
+
+      - name: Comment Governance Event ID on PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ inputs.pr-number }} \
+            --body "✅ **GovOps Governance Event recorded.** This merge has been logged in the Immutable Ledger as an \`execute\` event. Run ID: \`${{ github.run_id }}\`"

@@ -1,0 +1,65 @@
+name: GovOps — Milestone Governance Checkpoint
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+      milestone-number:
+        required: true
+        type: number
+
+jobs:
+  milestone-governance-checkpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find milestone checkpoint issue
+        id: find-checkpoint
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CHECKPOINT=$(gh issue list --repo ${{ github.repository }} \
+            --label "milestone-checkpoint" --milestone "${{ inputs.milestone-number }}" \
+            --json number,state,body --limit 1 | jq 'first')
+
+          if [ -z "$CHECKPOINT" ] || [ "$CHECKPOINT" = "null" ]; then
+            echo "::error::Milestone cannot close without a completed governance checkpoint."
+            echo "::error::Create an issue using the govops-milestone-review template, complete the checkpoint, and close it to proceed. [GOS §17.11]"
+            # Re-open the milestone via API
+            gh api repos/${{ github.repository }}/milestones/${{ inputs.milestone-number }} \
+              -X PATCH -f state=open 2>/dev/null || true
+            exit 1
+          fi
+
+          STATE=$(echo $CHECKPOINT | jq -r '.state')
+          if [ "$STATE" = "open" ]; then
+            echo "::error::Milestone checkpoint issue #$(echo $CHECKPOINT | jq '.number') is not yet closed. Complete the checkpoint review before closing this milestone."
+            gh api repos/${{ github.repository }}/milestones/${{ inputs.milestone-number }} \
+              -X PATCH -f state=open 2>/dev/null || true
+            exit 1
+          fi
+
+          BODY=$(echo $CHECKPOINT | jq -r '.body')
+          HAS_DECISION=$(echo "$BODY" | grep -c "\[x\].*Decision recorded" || true)
+          HAS_CONTINUATION=$(echo "$BODY" | grep -c "\[x\].*Continuation confirmed" || true)
+
+          if [ "$HAS_DECISION" -eq 0 ] && [ "$HAS_CONTINUATION" -eq 0 ]; then
+            echo "::error::Milestone checkpoint produced no governance decision and no continuation confirmation."
+            echo "::error::A milestone review that produces no decisions is not a governance event. Re-open the checkpoint. [GOS §17.11]"
+            exit 1
+          fi
+
+          echo "checkpoint_number=$(echo $CHECKPOINT | jq '.number')" >> $GITHUB_OUTPUT
+
+      - name: Write Decision Governance Event
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{\"identity\":\"$(cat /proc/sys/kernel/random/uuid)\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"decision\",\"payload\":{\"check\":\"milestone-checkpoint\",\"milestone_number\":${{ inputs.milestone-number }},\"checkpoint_issue\":${{ steps.find-checkpoint.outputs.checkpoint_number }},\"result\":\"pass\",\"repository\":\"${{ github.repository }}\",\"actor\":\"${{ github.actor }}\"}}" 2>/dev/null || true

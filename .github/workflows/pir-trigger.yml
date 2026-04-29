@@ -1,0 +1,55 @@
+name: GovOps — PIR Trigger
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+      closure-type:
+        required: true
+        type: string
+
+jobs:
+  pir-trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find PIR issue
+        id: find-pir
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PIR=$(gh issue list --repo ${{ github.repository }} \
+            --label "pir" --json number,state,body --limit 1 | jq 'first')
+
+          if [ -z "$PIR" ] || [ "$PIR" = "null" ]; then
+            echo "::error::Repository cannot archive without a completed Post-Implementation Review."
+            echo "::error::Create an issue using the govops-pir template, complete the review, and close it to proceed. [GOS §17.11]"
+            exit 1
+          fi
+
+          STATE=$(echo $PIR | jq -r '.state')
+          if [ "$STATE" = "open" ]; then
+            echo "::error::PIR issue #$(echo $PIR | jq '.number') is not yet closed. Complete the review before archiving."
+            exit 1
+          fi
+
+          BODY=$(echo $PIR | jq -r '.body')
+          if ! echo "$BODY" | grep -q "\[x\].*Improvement backlog submitted"; then
+            echo "::error::PIR is missing the improvement backlog submission. Populate the improvement backlog reference before closing. [GOS §24]"
+            exit 1
+          fi
+
+          echo "pir_number=$(echo $PIR | jq '.number')" >> $GITHUB_OUTPUT
+
+      - name: Write PIR Record Governance Event
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{\"identity\":\"$(cat /proc/sys/kernel/random/uuid)\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"record\",\"payload\":{\"check\":\"pir-trigger\",\"closure_type\":\"${{ inputs.closure-type }}\",\"pir_issue\":${{ steps.find-pir.outputs.pir_number }},\"result\":\"pass\",\"repository\":\"${{ github.repository }}\",\"actor\":\"${{ github.actor }}\"}}" 2>/dev/null || true

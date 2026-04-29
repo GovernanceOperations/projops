@@ -1,0 +1,257 @@
+name: GovOps — Governance Initialisation Check
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        description: 'Path to govops.yml'
+        required: true
+        type: string
+      governance-md-path:
+        description: 'Path to GOVERNANCE.md (default: GOVERNANCE.md)'
+        required: false
+        type: string
+        default: 'GOVERNANCE.md'
+
+jobs:
+  governance-init-check:
+    name: Governance Initialisation Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load configuration
+        id: config
+        run: |
+          if [ ! -f "${{ inputs.config-path }}" ]; then
+            echo "::error::govops.yml not found at ${{ inputs.config-path }}"
+            exit 1
+          fi
+          echo "config_exists=true" >> $GITHUB_OUTPUT
+
+      - name: Check GOVERNANCE.md exists
+        run: |
+          if [ ! -f "${{ inputs.governance-md-path }}" ]; then
+            echo "::error::GOVERNANCE.md not found. Repository is not a governed initiative."
+            echo "::error::Copy templates/GOVERNANCE.md from GovernanceOperations/projops and complete all fields."
+            exit 1
+          fi
+
+      - name: Validate governance scope fields
+        run: |
+          GOVMD="${{ inputs.governance-md-path }}"
+          ERRORS=""
+
+          SUBSTRATE=$(grep -A2 "\*\*Governance substrate\*\*" "$GOVMD" | \
+                      grep -v "Governance substrate\|^<!--\|^$" | head -1 | tr -d ' ')
+          if ! echo "$SUBSTRATE" | grep -qE "^(repository|github-project|both)$"; then
+            ERRORS="${ERRORS}\n  - Governance substrate must be: repository | github-project | both. Got: '${SUBSTRATE}'"
+          fi
+
+          CANONICAL=$(grep -A2 "\*\*Canonical repository\*\*" "$GOVMD" | \
+                      grep -v "Canonical repository\|^<!--\|^$" | head -1 | tr -d ' ')
+          if [ -z "$CANONICAL" ]; then
+            ERRORS="${ERRORS}\n  - Canonical repository is required."
+          fi
+
+          if echo "$SUBSTRATE" | grep -qE "github-project|both"; then
+            BOARD=$(grep -A2 "\*\*GitHub Project board" "$GOVMD" | \
+                    grep "github.com/orgs" | head -1 | tr -d ' ')
+            if [ -z "$BOARD" ]; then
+              ERRORS="${ERRORS}\n  - GitHub Project board URL is required when substrate is github-project or both."
+            elif ! echo "$BOARD" | grep -qE "^https://github\.com/orgs/[^/]+/projects/[0-9]+$"; then
+              ERRORS="${ERRORS}\n  - GitHub Project board URL format invalid. Expected: https://github.com/orgs/ORG/projects/N"
+            fi
+          fi
+
+          if [ -n "$ERRORS" ]; then
+            echo "::error::Governance scope validation failed:${ERRORS}"
+            exit 1
+          fi
+          echo "GOVERNANCE_SUBSTRATE=${SUBSTRATE}" >> $GITHUB_ENV
+          echo "CANONICAL_REPO=${CANONICAL}" >> $GITHUB_ENV
+
+      - name: Validate GOVERNANCE.md required fields
+        id: validate-governance-md
+        run: |
+          GOVMD="${{ inputs.governance-md-path }}"
+          ERRORS=""
+
+          check_field() {
+            local field="$1"
+            local label="$2"
+            if ! grep -q "^\*\*${field}\*\*" "$GOVMD"; then
+              ERRORS="${ERRORS}\n  - Missing field: ${label}"
+            fi
+          }
+
+          # Check all required fields are present and non-empty
+          for field in "Initiative title" "Decision Contract reference" "Decision class" \
+                       "Operational tier" "Problem being solved" "Outcome targeted" \
+                       "Constraints accepted" "Success criteria" "Primary classification" \
+                       "Classification rationale" "Sponsoring authority" \
+                       "Approves scope changes" "Delivery pattern" "Execution framework" \
+                       "Governance cadence" "Selection rationale" "Approved by"; do
+            if ! grep -q "${field}" "$GOVMD"; then
+              ERRORS="${ERRORS}\n  - Missing field: ${field}"
+            fi
+          done
+
+          if [ -n "$ERRORS" ]; then
+            echo "::error::GOVERNANCE.md is missing required fields:${ERRORS}"
+            exit 1
+          fi
+
+      - name: Validate Decision Contract reference format
+        run: |
+          GOVMD="${{ inputs.governance-md-path }}"
+          DCR=$(grep -A1 "Decision Contract reference" "$GOVMD" | tail -1 | sed 's/<!-- .* -->//' | tr -d ' ')
+          if [ -z "$DCR" ] || echo "$DCR" | grep -q "^<!--"; then
+            echo "::error::Decision Contract reference is missing or empty."
+            exit 1
+          fi
+          if ! echo "$DCR" | grep -qE "^[A-Z]{2,}-[0-9]{4}-[0-9]{4}-[A-Z0-9]{8}$"; then
+            echo "::error::Decision Contract reference format invalid. Expected: ENTITY-YEAR-SEQUENCE-CHECKSUM"
+            echo "::error::Example: ACME-2026-0042-A3F9B2C1. Got: ${DCR}"
+            exit 1
+          fi
+
+      - name: Validate uncertainty classification
+        run: |
+          GOVMD="${{ inputs.governance-md-path }}"
+          CLASSIFICATION=$(grep -A2 "Primary classification" "$GOVMD" | grep -v "Primary classification" | \
+                           grep -v "^<!--" | grep -v "^$" | head -1 | tr -d ' ')
+
+          if ! echo "$CLASSIFICATION" | grep -qE "^(aleatory|epistemic|ambiguity)$"; then
+            echo "::error::Uncertainty classification must be one of: aleatory | epistemic | ambiguity"
+            echo "::error::Got: '${CLASSIFICATION}'"
+            exit 1
+          fi
+
+          if [ "$CLASSIFICATION" = "ambiguity" ]; then
+            RESOLUTION=$(grep -A2 "Ambiguity resolution reference" "$GOVMD" | grep "http" | head -1)
+            if [ -z "$RESOLUTION" ]; then
+              echo "::error::Uncertainty classified as ambiguity."
+              echo "::error::Initiative cannot proceed until ambiguity_resolution_ref references a completed alignment record. [GOS §17.11]"
+              exit 1
+            fi
+          fi
+          echo "UNCERTAINTY_CLASS=${CLASSIFICATION}" >> $GITHUB_ENV
+
+      - name: Validate delivery system fields
+        run: |
+          GOVMD="${{ inputs.governance-md-path }}"
+          ERRORS=""
+
+          PATTERN=$(grep -A2 "\*\*Delivery pattern\*\*" "$GOVMD" | grep -v "Delivery pattern" | \
+                    grep -v "^<!--" | grep -v "^$" | head -1 | tr -d ' ')
+          if ! echo "$PATTERN" | grep -qE "^(staged-gate|iterative|parallel-track|hybrid)$"; then
+            ERRORS="${ERRORS}\n  - Delivery pattern must be: staged-gate | iterative | parallel-track | hybrid. Got: '${PATTERN}'"
+          fi
+
+          FRAMEWORK=$(grep -A2 "\*\*Execution framework\*\*" "$GOVMD" | grep -v "Execution framework" | \
+                      grep -v "^<!--" | grep -v "^$" | head -1 | tr -d ' ')
+          if ! echo "$FRAMEWORK" | grep -qE "^(scrum|kanban|prince2|safe|internal|hybrid)$"; then
+            ERRORS="${ERRORS}\n  - Execution framework must be: scrum | kanban | prince2 | safe | internal | hybrid. Got: '${FRAMEWORK}'"
+          fi
+
+          if echo "$FRAMEWORK" | grep -qE "^(hybrid|internal)$"; then
+            DESC=$(grep -A3 "Framework description" "$GOVMD" | grep -v "Framework description" | \
+                   grep -v "^<!--" | grep -v "^$" | head -1)
+            if [ -z "$DESC" ]; then
+              ERRORS="${ERRORS}\n  - Framework description is required for hybrid or internal frameworks."
+            fi
+          fi
+
+          CADENCE=$(grep -A2 "\*\*Governance cadence\*\*" "$GOVMD" | grep -v "Governance cadence" | \
+                    grep -v "^<!--" | grep -v "^$" | head -1)
+          if [ -z "$CADENCE" ]; then
+            ERRORS="${ERRORS}\n  - Governance cadence is required."
+          fi
+
+          DEVIATION=$(grep -A2 "Deviation from organisational mandate" "$GOVMD" | \
+                      grep -v "Deviation from" | grep -v "^<!--" | grep -v "^$" | head -1 | tr -d ' ')
+          if [ "$DEVIATION" = "yes" ]; then
+            DEV_RATIONALE=$(grep -A3 "Deviation rationale" "$GOVMD" | grep -v "Deviation rationale" | \
+                            grep -v "^<!--" | grep -v "^$" | head -1)
+            DEV_APPROVED=$(grep -A2 "Deviation approved by" "$GOVMD" | grep "@" | head -1)
+            if [ -z "$DEV_RATIONALE" ]; then
+              ERRORS="${ERRORS}\n  - Deviation rationale is required when deviating from organisational mandate."
+            fi
+            if [ -z "$DEV_APPROVED" ]; then
+              ERRORS="${ERRORS}\n  - Deviation approved_by is required when deviating from organisational mandate."
+            fi
+          fi
+
+          # Consistency: ambiguity cannot have a delivery pattern
+          if [ "$UNCERTAINTY_CLASS" = "ambiguity" ] && [ -n "$PATTERN" ] && [ "$PATTERN" != "none" ]; then
+            ERRORS="${ERRORS}\n  - Delivery pattern cannot be set for an ambiguity-classified initiative. Resolve ambiguity first."
+          fi
+
+          # Advisory: aleatory under staged-gate concentrates risk at gates
+          if [ "$UNCERTAINTY_CLASS" = "aleatory" ] && [ "$PATTERN" = "staged-gate" ]; then
+            echo "::warning::Staged-gate delivery under aleatory uncertainty concentrates irreducible risk at gates. Confirm this selection is intentional and document the rationale explicitly. [Section 10.5]"
+          fi
+
+          if [ -n "$ERRORS" ]; then
+            echo "::error::Delivery system validation failed:${ERRORS}"
+            exit 1
+          fi
+          echo "DELIVERY_PATTERN=${PATTERN}" >> $GITHUB_ENV
+          echo "DELIVERY_FRAMEWORK=${FRAMEWORK}" >> $GITHUB_ENV
+
+      - name: Validate govops.yml delivery system consistency
+        run: |
+          CONFIG="${{ inputs.config-path }}"
+          YML_PATTERN=$(grep "^  pattern:" "$CONFIG" | awk '{print $2}' | tr -d '"')
+          YML_FRAMEWORK=$(grep "^  framework:" "$CONFIG" | awk '{print $2}' | tr -d '"')
+
+          if [ -n "$YML_PATTERN" ] && [ "$YML_PATTERN" != "$DELIVERY_PATTERN" ]; then
+            echo "::error::govops.yml delivery_system.pattern (${YML_PATTERN}) does not match GOVERNANCE.md delivery pattern (${DELIVERY_PATTERN})."
+            echo "::error::Both records must reflect the same governed delivery system."
+            exit 1
+          fi
+          if [ -n "$YML_FRAMEWORK" ] && [ "$YML_FRAMEWORK" != "$DELIVERY_FRAMEWORK" ]; then
+            echo "::error::govops.yml delivery_system.framework (${YML_FRAMEWORK}) does not match GOVERNANCE.md execution framework (${DELIVERY_FRAMEWORK})."
+            exit 1
+          fi
+
+      - name: Write Governance Event to Immutable Ledger
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          EVENT_ID=$(cat /proc/sys/kernel/random/uuid)
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.%6NZ")
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "identity": "${EVENT_ID}",
+            "timestamp": "${TIMESTAMP}",
+            "type": "observation",
+            "payload": {
+              "check": "governance-init",
+              "result": "pass",
+              "repository": "${{ github.repository }}",
+              "decision_contract_ref": "$(grep -A1 'Decision Contract reference' ${{ inputs.governance-md-path }} | tail -1 | sed 's/<!-- .* -->//' | tr -d ' ')",
+              "uncertainty_classification": "${UNCERTAINTY_CLASS}",
+              "delivery_system": {
+                "pattern": "${DELIVERY_PATTERN}",
+                "framework": "${DELIVERY_FRAMEWORK}"
+              },
+              "run_id": "${{ github.run_id }}",
+              "actor": "${{ github.actor }}"
+            }
+          }
+          EOF
+          )
+
+          if [ -n "$LEDGER_ENDPOINT" ] && [ -n "$LEDGER_API_KEY" ]; then
+            curl -s -X POST "$LEDGER_ENDPOINT" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $LEDGER_API_KEY" \
+              -d "$PAYLOAD" || echo "::warning::Ledger write failed. Governance Event not recorded."
+          else
+            echo "::warning::Ledger endpoint not configured. Governance Event not written to Immutable Ledger."
+          fi

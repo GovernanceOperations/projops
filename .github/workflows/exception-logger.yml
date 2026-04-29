@@ -1,0 +1,94 @@
+name: GovOps — Exception Logger
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+
+jobs:
+  exception-logger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect bypass events
+        id: detect-bypass
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BYPASS_DETECTED=false
+          BYPASS_TYPE=""
+          BYPASSING_ACTOR=""
+          BYPASSED_REQUIREMENT=""
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+            if [ "$CONCLUSION" = "skipped" ]; then
+              BYPASS_DETECTED=true
+              BYPASS_TYPE="workflow-bypass"
+              BYPASSING_ACTOR="${{ github.event.workflow_run.actor.login }}"
+              BYPASSED_REQUIREMENT="Governance workflow: ${{ github.event.workflow_run.name }}"
+            fi
+          fi
+
+          echo "bypass_detected=${BYPASS_DETECTED}" >> $GITHUB_OUTPUT
+          echo "bypass_type=${BYPASS_TYPE}" >> $GITHUB_OUTPUT
+          echo "bypassing_actor=${BYPASSING_ACTOR}" >> $GITHUB_OUTPUT
+          echo "bypassed_requirement=${BYPASSED_REQUIREMENT}" >> $GITHUB_OUTPUT
+
+      - name: Create exception log issue
+        if: steps.detect-bypass.outputs.bypass_detected == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXPIRY=$(date -d "+14 days" +%Y-%m-%d)
+          ACTOR="${{ steps.detect-bypass.outputs.bypassing_actor }}"
+          REQ="${{ steps.detect-bypass.outputs.bypassed_requirement }}"
+          BTYPE="${{ steps.detect-bypass.outputs.bypass_type }}"
+          REPO="${{ github.repository }}"
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Write body using printf to avoid YAML parsing issues with markdown and @ in heredocs
+          printf '%s\n' \
+            "## Exception Record" \
+            "" \
+            "Repository: ${REPO}" \
+            "Date of exception: ${NOW}" \
+            "Bypassing actor: ${ACTOR}" \
+            "Governance requirement bypassed: ${REQ}" \
+            "Exception type: ${BTYPE}" \
+            "" \
+            "## Rationale" \
+            "<!-- Complete this section before the expiry date -->" \
+            "" \
+            "## Remediation" \
+            "Expiry date: ${EXPIRY}" \
+            "Assigned owner: ${ACTOR}" \
+            "" \
+            "## Closure Criteria" \
+            "- [ ] Remediation action completed" \
+            "- [ ] Governance requirement now satisfied" \
+            "- [ ] Exception pattern reported to portfolio health (if 3rd+ of same type)" \
+            "" \
+            "<!-- govops-end -->" \
+            > /tmp/exception-body.md
+
+          gh issue create \
+            --repo "${REPO}" \
+            --title "GovOps Exception: ${REQ}" \
+            --label "govops-exception" \
+            --assignee "${ACTOR}" \
+            --body-file /tmp/exception-body.md
+
+      - name: Write Alert Governance Event
+        if: steps.detect-bypass.outputs.bypass_detected == 'true'
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{\"identity\":\"$(cat /proc/sys/kernel/random/uuid)\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"alert\",\"payload\":{\"check\":\"exception-logger\",\"exception_type\":\"${{ steps.detect-bypass.outputs.bypass_type }}\",\"bypassing_actor\":\"${{ steps.detect-bypass.outputs.bypassing_actor }}\",\"bypassed_requirement\":\"${{ steps.detect-bypass.outputs.bypassed_requirement }}\",\"repository\":\"${{ github.repository }}\"}}" 2>/dev/null || true

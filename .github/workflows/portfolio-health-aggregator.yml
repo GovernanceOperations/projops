@@ -1,0 +1,93 @@
+name: GovOps — Portfolio Health Aggregator
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+      org-name:
+        required: true
+        type: string
+
+jobs:
+  portfolio-health-aggregator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load portfolio configuration
+        id: portfolio-config
+        run: |
+          LABEL=$(grep "org_label:" ${{ inputs.config-path }} | awk '{print $2}' | tr -d '"')
+          PORTFOLIO_REPO=$(grep "portfolio_repo:" ${{ inputs.config-path }} | awk '{print $2}' | tr -d '"')
+          echo "portfolio_label=${LABEL}" >> $GITHUB_OUTPUT
+          echo "portfolio_repo=${PORTFOLIO_REPO}" >> $GITHUB_OUTPUT
+
+      - name: Aggregate portfolio metrics
+        id: aggregate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LABEL="${{ steps.portfolio-config.outputs.portfolio_label }}"
+          ORG="${{ inputs.org-name }}"
+          TOTAL_EXCEPTIONS=0
+          OVERDUE_EXCEPTIONS=0
+          REPOS_IN_ALERT=""
+          REPORT="# Portfolio Health Report — $(date -u +%Y-%m-%d)\n\n"
+          REPORT="${REPORT}**Organisation:** ${ORG}\n"
+          REPORT="${REPORT}**Portfolio label:** ${LABEL}\n"
+          REPORT="${REPORT}**Generated:** $(date -u +%Y-%m-%dT%H:%M:%SZ)\n\n"
+          REPORT="${REPORT}| Repository | Open Exceptions | Overdue | GOVERNANCE.md | Status |\n"
+          REPORT="${REPORT}|---|---|---|---|---|\n"
+
+          if [ -n "$LABEL" ]; then
+            REPOS=$(gh api "orgs/${ORG}/repos" --paginate --jq '.[].full_name' 2>/dev/null | head -50)
+            for REPO in $REPOS; do
+              OPEN_EXC=$(gh issue list --repo "$REPO" --label "govops-exception" --state open --json number 2>/dev/null | jq 'length' || echo 0)
+              GOV_MD=$(gh api "repos/${REPO}/contents/GOVERNANCE.md" 2>/dev/null | jq -r '.name // "missing"')
+              STATUS="✅"
+              if [ "$OPEN_EXC" -gt 0 ] || [ "$GOV_MD" = "missing" ]; then
+                STATUS="⚠️"
+                REPOS_IN_ALERT="${REPOS_IN_ALERT} ${REPO}"
+              fi
+              TOTAL_EXCEPTIONS=$((TOTAL_EXCEPTIONS + OPEN_EXC))
+              REPORT="${REPORT}| ${REPO} | ${OPEN_EXC} | 0 | ${GOV_MD} | ${STATUS} |\n"
+            done
+          fi
+
+          REPORT="${REPORT}\n## Summary\n"
+          REPORT="${REPORT}- Total open exceptions: ${TOTAL_EXCEPTIONS}\n"
+          if [ -n "$REPOS_IN_ALERT" ]; then
+            REPORT="${REPORT}- Repositories requiring attention:${REPOS_IN_ALERT}\n"
+          fi
+
+          echo -e "$REPORT" > portfolio-health-report.md
+
+      - name: Upload report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portfolio-health-report-$(date +%Y%m%d)
+          path: portfolio-health-report.md
+          retention-days: 90
+
+      - name: Post report as issue
+        if: steps.portfolio-config.outputs.portfolio_repo != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --repo "${{ steps.portfolio-config.outputs.portfolio_repo }}" \
+            --title "Portfolio Health Report — $(date -u +%Y-%m-%d)" \
+            --label "portfolio-health" \
+            --body "$(cat portfolio-health-report.md)"
+
+      - name: Write Record Governance Event
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{\"identity\":\"$(cat /proc/sys/kernel/random/uuid)\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"record\",\"payload\":{\"check\":\"portfolio-health\",\"report_date\":\"$(date -u +%Y-%m-%d)\",\"org\":\"${{ inputs.org-name }}\",\"repository\":\"${{ github.repository }}\"}}" 2>/dev/null || true

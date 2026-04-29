@@ -1,0 +1,60 @@
+name: GovOps — Asset Handover Validator
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+
+jobs:
+  asset-handover-validator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check ASSET-HANDOVER.md exists
+        run: |
+          if [ ! -f "ASSET-HANDOVER.md" ]; then
+            echo "::error::No asset handover record found."
+            echo "::error::Create ASSET-HANDOVER.md using the template before archiving. [GOS §17.11]"
+            exit 1
+          fi
+
+      - name: Validate asset handover record
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ERRORS=""
+          # Count asset entries (rows in the table after the header)
+          ASSET_COUNT=$(grep -c "^| " ASSET-HANDOVER.md | tail -1 || echo 0)
+          ASSET_COUNT=$((ASSET_COUNT - 2))  # subtract header and separator rows
+          if [ "$ASSET_COUNT" -lt 1 ]; then
+            echo "::error::ASSET-HANDOVER.md has no asset entries. At least one asset must be listed."
+            exit 1
+          fi
+
+          # Validate each data row has all required fields populated (no empty cells)
+          while IFS= read -r line; do
+            if echo "$line" | grep -q "^| " && ! echo "$line" | grep -q "^|---"; then
+              EMPTY_CELLS=$(echo "$line" | grep -o "| \+|" | wc -l)
+              if [ "$EMPTY_CELLS" -gt 0 ]; then
+                ERRORS="${ERRORS}\n  - Row with empty fields: ${line}"
+              fi
+            fi
+          done < ASSET-HANDOVER.md
+
+          if [ -n "$ERRORS" ]; then
+            echo "::error::Asset handover record has incomplete entries:${ERRORS}"
+            exit 1
+          fi
+
+      - name: Write Asset Handover Governance Event
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{\"identity\":\"$(cat /proc/sys/kernel/random/uuid)\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"record\",\"payload\":{\"check\":\"asset-handover\",\"result\":\"pass\",\"repository\":\"${{ github.repository }}\",\"actor\":\"${{ github.actor }}\"}}" 2>/dev/null || true

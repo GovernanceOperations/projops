@@ -1,0 +1,70 @@
+name: GovOps — IAL Ceiling Check
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+      reviewer-username:
+        required: false
+        type: string
+      action-type:
+        required: true
+        type: string
+
+jobs:
+  ial-ceiling-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine required IAL
+        id: required-ial
+        run: |
+          if [ "${{ inputs.action-type }}" = "deploy" ]; then
+            REQUIRED=$(grep "ial_required_for_deploy" ${{ inputs.config-path }} | awk '{print $2}' || echo "2")
+          else
+            REQUIRED=$(grep "ial_required_for_merge" ${{ inputs.config-path }} | awk '{print $2}' || echo "2")
+          fi
+          echo "required_ial=${REQUIRED}" >> $GITHUB_OUTPUT
+
+      - name: Check IAL register
+        id: ial-check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REVIEWER="${{ inputs.reviewer-username || github.actor }}"
+          REQUIRED_IAL=${{ steps.required-ial.outputs.required_ial }}
+          PLATFORM_CEILING=2
+
+          # Read IAL register from .github/govops/ial-register.json
+          REVIEWER_IAL=1
+          if [ -f ".github/govops/ial-register.json" ]; then
+            REVIEWER_IAL=$(jq -r --arg user "$REVIEWER" '.members[$user].ial // 1' .github/govops/ial-register.json)
+          fi
+
+          echo "reviewer_ial=${REVIEWER_IAL}" >> $GITHUB_OUTPUT
+
+          if [ "$REQUIRED_IAL" -gt "$PLATFORM_CEILING" ]; then
+            echo "::error::This action requires IAL ${REQUIRED_IAL}, which exceeds the platform ceiling of IAL 2 on GitHub."
+            echo "::error::An out-of-band IAL ${REQUIRED_IAL} approval record is required."
+            echo "::error::See GovernanceOperations/projops/docs/ial-out-of-band.md"
+            echo "out_of_band_required=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          if [ "$REVIEWER_IAL" -lt "$REQUIRED_IAL" ]; then
+            echo "::error::Reviewer @${REVIEWER} has IAL ${REVIEWER_IAL} but IAL ${REQUIRED_IAL} is required for this action."
+            exit 1
+          fi
+
+      - name: Write Approval Governance Event
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{\"identity\":\"$(cat /proc/sys/kernel/random/uuid)\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"approval\",\"payload\":{\"check\":\"ial-ceiling\",\"reviewer\":\"${{ inputs.reviewer-username || github.actor }}\",\"reviewer_ial\":\"${{ steps.ial-check.outputs.reviewer_ial }}\",\"required_ial\":\"${{ steps.required-ial.outputs.required_ial }}\",\"action_type\":\"${{ inputs.action-type }}\",\"result\":\"pass\",\"repository\":\"${{ github.repository }}\"}}" 2>/dev/null || true

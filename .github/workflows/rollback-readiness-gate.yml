@@ -1,0 +1,72 @@
+name: GovOps — Rollback Readiness Gate
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: true
+        type: string
+      deployment-id:
+        required: true
+        type: string
+      operation-class:
+        required: true
+        type: string
+
+jobs:
+  rollback-readiness-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if not irreversible
+        if: inputs.operation-class != 'irreversible'
+        run: echo "Operation class is ${{ inputs.operation-class }}. Rollback readiness gate applies only to irreversible deployments. Skipping."
+
+      - name: Check rollback workflow exists
+        if: inputs.operation-class == 'irreversible'
+        run: |
+          if ! find .github/workflows -name "rollback*.yml" -o -name "rollback.yml" 2>/dev/null | grep -q .; then
+            echo "::error::No rollback workflow found. Irreversible deployments require a defined rollback procedure."
+            echo "::error::Create .github/workflows/rollback.yml before proceeding. [GOS §17.11]"
+            exit 1
+          fi
+
+      - name: Check rollback test record
+        if: inputs.operation-class == 'irreversible'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TESTED=$(gh issue list --repo ${{ github.repository }} \
+            --label "rollback-tested" --state closed \
+            --json closedAt --limit 1 | jq -r 'first.closedAt // empty')
+          if [ -z "$TESTED" ]; then
+            echo "::error::Rollback procedure has not been tested. Close a rollback-tested labelled issue to confirm."
+            exit 1
+          fi
+          DAYS_AGO=$(( ($(date +%s) - $(date -d "$TESTED" +%s)) / 86400 ))
+          if [ "$DAYS_AGO" -gt 30 ]; then
+            echo "::error::Rollback procedure was last tested ${DAYS_AGO} days ago. Re-test within 30 days before an irreversible deployment."
+            exit 1
+          fi
+
+      - name: Check rollback authority named
+        if: inputs.operation-class == 'irreversible'
+        run: |
+          ROLLBACK_AUTH=$(grep "rollback_authority" ${{ inputs.config-path }} | awk '{print $2}' | tr -d '"')
+          if [ -z "$ROLLBACK_AUTH" ] || [ "$ROLLBACK_AUTH" = '""' ]; then
+            echo "::error::No rollback authority named in govops.yml. Specify rollback_authority before an irreversible deployment."
+            exit 1
+          fi
+          echo "::notice::Irreversible deployment. Rollback authority: ${ROLLBACK_AUTH}. IAL advisory: GitHub platform ceiling is IAL 2. If IAL > 2 is required for this decision class, an out-of-band approval record must be linked to this deployment."
+
+      - name: Write Verification Governance Event
+        if: inputs.operation-class == 'irreversible'
+        env:
+          LEDGER_ENDPOINT: ${{ secrets.LEDGER_ENDPOINT }}
+          LEDGER_API_KEY: ${{ secrets.LEDGER_API_KEY }}
+        run: |
+          curl -s -X POST "$LEDGER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $LEDGER_API_KEY" \
+            -d "{\"identity\":\"$(cat /proc/sys/kernel/random/uuid)\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"type\":\"verification\",\"payload\":{\"check\":\"rollback-readiness\",\"operation_class\":\"irreversible\",\"deployment_id\":\"${{ inputs.deployment-id }}\",\"result\":\"pass\",\"repository\":\"${{ github.repository }}\"}}" 2>/dev/null || true
