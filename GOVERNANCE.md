@@ -2,6 +2,27 @@
 
 <!-- govops-schema: governance-md v0.9 -->
 
+<!-- CANONICAL RECORD POSITION: -->
+<!-- This file is the canonical governance record for the -->
+<!-- GovernanceOperations/projops initiative. It governs the projops -->
+<!-- repository itself — the governance layer for all adopting initiatives. -->
+
+---
+
+## Governance Scope
+
+**Governance substrate:**
+repository
+
+**Canonical repository:**
+GovernanceOperations/projops
+
+**GitHub Project board (if applicable):**
+N/A
+
+**Additional repositories in this initiative (if applicable):**
+N/A
+
 ---
 
 ## What This Project Is
