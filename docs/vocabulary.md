@@ -231,6 +231,35 @@ run as GitHub Actions.
 A type of software integration that connects to a GitHub organisation or
 repository with defined permissions. The GovOps Ledger Bridge is a GitHub App.
 
+**GitHub Projects** (also: GitHub Project board)
+A planning and tracking feature built into GitHub that provides a board,
+table, or roadmap view of work items (issues and pull requests). A GitHub
+Project board is separate from any repository — it can span multiple
+repositories within an organisation and has its own lifecycle.
+
+*This is distinct from: the initiative (the governed delivery entity),
+and the repository (where code and files live). All three may exist for
+the same body of work. Each requires its own governance consideration.*
+
+The governance layer covers GitHub Projects through the projects_v2 event
+in the suite workflow and the Ledger Bridge. Closing a GitHub Project
+triggers the same PIR and asset handover checks as archiving a repository.
+For multi-repository initiatives tracked through a GitHub Project board,
+the governance scope field in GOVERNANCE.md declares which repository
+holds the canonical governance record.
+
+**git**
+A version control system — the underlying technology that tracks changes
+to files over time. GitHub, GitLab, Bitbucket, Azure DevOps, Gitea, and
+Forgejo are all platforms that host git repositories. git itself is
+platform-agnostic.
+
+The GovOps governance principles apply to any git host. The automated
+workflow files in this repository run natively on GitHub. Equivalent
+implementations for other platforms follow the same nine Platform Substrate
+Governance properties using each platform's native automation.
+See docs/git-platform-coverage.md.
+
 **Governance**
 The system of rules, practices, and processes by which an organisation makes
 decisions, exercises authority, and ensures accountability. Good governance
