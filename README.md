@@ -10,7 +10,48 @@ auditable, and honestly managed from start to finish.
 
 ---
 
-## What problem does this solve?
+## Three things this layer uses the word "project" to mean
+
+Before anything else, a clarification — because GitHub uses the word
+"project" to mean three different things, and this layer needs to be
+precise about all three.
+
+**An initiative** is the governed delivery entity. The body of work
+that has been formally authorised, has a mandate and a sponsor, consumes
+resources, and will eventually produce outputs that the organisation
+continues to use. This is what governance is applied to. The initiative
+is the thing that has a GOVERNANCE.md, a decision class, an uncertainty
+classification, and five operational readiness conditions.
+
+**A repository** is the GitHub storage location where code and files
+live. For many initiatives, the repository is the primary delivery
+substrate — where changes are made, reviewed, and merged. The governance
+layer activates on repository events: pushes, pull requests, deployments,
+milestones, and archiving.
+
+**A GitHub Project** (also called a project board) is GitHub's built-in
+planning and tracking tool — a board, table, or roadmap view of work
+items. A GitHub Project board is separate from any repository. It can
+span multiple repositories. It has its own lifecycle, including closure.
+
+**This layer covers all three.** The governance checks activate on
+repository events and on GitHub Project events. Closing a GitHub
+Project board triggers the same post-project review and asset handover
+checks as archiving a repository. For initiatives spanning multiple
+repositories through a GitHub Project board, the GOVERNANCE.md governance
+scope field declares which repository holds the canonical governance record.
+
+**What about git hosts other than GitHub?**
+The governance workflows in this repository run on GitHub Actions and
+are GitHub-specific. The governance *principles* — the nine Platform
+Substrate Governance properties from GOS §17.11 — apply to any git
+host. GitLab, Azure DevOps, Bitbucket, Gitea, and Forgejo can all
+implement equivalent governance layers using their native automation.
+The permanent record (Immutable Ledger) and the governance templates are
+platform-agnostic. See [docs/git-platform-coverage.md](docs/git-platform-coverage.md)
+for specific guidance on each platform.
+
+---
 
 Most organisations have governance policies. Few have governance practice.
 The gap between the two is where projects fail, compliance obligations
@@ -148,10 +189,11 @@ A governed project, under this layer, means:
 | Document | Who it is for | What it covers |
 |---|---|---|
 | [docs/adopting-the-layer.md](docs/adopting-the-layer.md) | Project teams | Complete step-by-step guide to connecting a project repository to this layer |
-| [docs/deploying-projops.md](docs/deploying-projops.md) | Governance layer administrators | How to set up the GovernanceOperations/projops repository itself — organisation settings, permanent record system, Ledger Bridge, IAL register, release tags |
-| [docs/configuration-reference.md](docs/configuration-reference.md) | Anyone configuring govops.yml | Every field explained — what it does, valid values, what goes wrong, guidance |
+| [docs/deploying-projops.md](docs/deploying-projops.md) | Governance layer administrators | How to set up the GovernanceOperations/projops repository itself |
+| [docs/configuration-reference.md](docs/configuration-reference.md) | Anyone configuring govops.yml | Every field explained — what it does, valid values, what goes wrong |
+| [docs/git-platform-coverage.md](docs/git-platform-coverage.md) | Teams on non-GitHub git hosts | How governance coverage works on GitLab, Azure DevOps, Bitbucket, Gitea, Forgejo |
 | [docs/vocabulary.md](docs/vocabulary.md) | Everyone | Plain-language explanation of every term, acronym, and concept |
-| [docs/ial-out-of-band.md](docs/ial-out-of-band.md) | Governance authorities | How to handle decisions requiring higher identity assurance than GitHub provides |
+| [docs/ial-out-of-band.md](docs/ial-out-of-band.md) | Governance authorities | High identity assurance approvals beyond GitHub's IAL 2 ceiling |
 | [bridge/README.md](bridge/README.md) | Administrators, developers | The permanent record bridge — what it does, how it works, setup |
 | [CHANGELOG.md](CHANGELOG.md) | Everyone | What has changed between versions |
 
