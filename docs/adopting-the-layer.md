@@ -1,508 +1,733 @@
 # Adopting the GovOps GitHub Layer
-## A complete guide for project teams connecting to the governance layer
+## Complete guide — Step 7 and day-to-day operations
 
-This document covers every step a project team needs to take to connect
-their GitHub repository to the GovOps governance layer and have all
-eleven governance checks active and working.
+This document covers Step 7 of the configuration sequence: connecting
+a project repository to the governance layer. It also covers day-to-day
+operations — what happens when each governance check fires on real work,
+and what the team does in response.
 
-If you are looking for how to deploy the governance layer itself —
-not how to connect a project to it — see
-[deploying-projops.md](deploying-projops.md).
+Steps 1 through 6 (deploying the layer itself) are in deploying-projops.md.
 
-Plain-language guide to every term: [vocabulary.md](vocabulary.md)
-
----
-
-## What connecting does
-
-When your repository is connected to this layer, eleven automatic
-governance checks activate. They run as part of your existing GitHub
-workflow — when you open a pull request, merge changes, close a
-milestone, or deploy to production. You do not use a separate system.
-The governance happens where the work happens.
-
-What changes for your team:
-- Pull requests cannot be merged without completing the checks
-- Milestones cannot close without a governance review
-- Production deployments cannot proceed without five readiness
-  confirmations from named people
-- Projects cannot archive without a post-project review and
-  a named owner for every output
-
-What does not change:
-- How you write code or manage your project day-to-day
-- Which tools you use
-- Your existing review and approval processes (the governance
-  layer sits alongside them, not instead of them)
+Plain-language guide to every term: vocabulary.md
 
 ---
 
-## Before you begin
+## Before you start Step 7
 
-**What you need:**
-- A GitHub repository for your project
-- The name of your organisation's governance layer repository
-  (ask whoever set up the layer — it will be something like
-  `GovernanceOperations/projops`)
-- Access to your organisation's permanent record endpoint details
-  (ask the governance layer administrator — you will need this
-  for your `govops.yml` configuration)
-- About 30 minutes
+Have ready before opening any file:
+- The repository name in org/repo format
+- The authorising decision reference in ENTITY-YEAR-SEQUENCE-CHECKSUM format
+  (example: ACME-2026-0042-A3F9B2C1)
+- Names of the four authority roles:
+    Project sponsor          @github-username
+    Scope change approver    @github-username
+    Compliance exception     @github-username (different from sponsor)
+    Rollback authority       @github-username
+- Uncertainty classification: aleatory, epistemic, or ambiguity
+- Compliance obligation level: high, medium, or low
+- Rate of change tolerance: high, medium, or low
+- Delivery pattern and framework decision
 
-**What you need to know about your project:**
-Before filling in the configuration files, have answers ready for:
-- What authorised this project? (You will need the decision reference number)
-- What type of uncertainty does this project face? (Things you cannot
-  know in advance, things you could find out, or a contested objective?)
-- Who has authority to approve scope changes?
-- Who can grant compliance exceptions?
-- How is the project being delivered — and was that choice deliberate?
-
-If any of these cannot be answered, the project may not be ready to
-begin. The governance layer will surface this explicitly.
+If any of these cannot be answered, the initiative may not be ready
+to begin. The governance layer will surface this at Step 7f.
 
 ---
 
-## Step 1 — Copy the GOVERNANCE.md template to your repository root
+## Step 7a — Create GOVERNANCE.md
 
-The GOVERNANCE.md file is the governance identity record for your
-project. It must exist at the root of your repository before any
-project work can be merged to the main branch.
+Create GOVERNANCE.md at the repository root.
 
-```bash
-# From your project repository root
-curl -o GOVERNANCE.md \
-  https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/templates/GOVERNANCE.md
-```
+Download the template:
+  curl -o GOVERNANCE.md \
+    https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/templates/GOVERNANCE.md
 
-Or copy it manually from `templates/GOVERNANCE.md` in the governance
-layer repository.
+Or create directly in GitHub:
+  Your repository > Add file > Create new file > name it GOVERNANCE.md
+  Paste from GovernanceOperations/projops/templates/GOVERNANCE.md
 
-**Now open GOVERNANCE.md and complete every field.** The comments in
-the template explain exactly what each field requires and why. Fields
-that the automated check validates:
+Complete every field. Example for a Tier 2 iterative initiative:
 
-- Initiative title — must be non-empty
-- Authorising decision reference — must match the format
-  `ENTITY-YEAR-SEQUENCE-CHECKSUM` (example: `ACME-2026-0042-A3F9B2C1`)
-- Decision type — must be one of: `reversible`, `conditional`, `irreversible`
-- Governance tier — must be one of: `1`, `2`, `3`, `4`
-- Uncertainty classification — must be one of: `aleatory`, `epistemic`, `ambiguity`
-- Ambiguity resolution reference — required if classification is `ambiguity`
-- All authority fields — must name a valid GitHub username
-- Delivery pattern — must be one of: `staged-gate`, `iterative`,
-  `parallel-track`, `hybrid`
-- Execution framework — must be one of: `scrum`, `kanban`, `prince2`,
-  `safe`, `internal`, `hybrid`
-- Governance cadence — must be non-empty and specific
-- Selection rationale — must be non-empty
+---
+# Project Governance Record
 
-**If your project's objective is currently contested (ambiguity):**
-The governance check will block all execution until you complete
-an alignment process among the project's sponsors and provide a
-link to the resolution record in the `Ambiguity resolution record`
-field. This is intentional — starting work on a contested objective
-is the most reliable way to deliver the wrong thing with confidence.
+<!-- govops-schema: governance-md v0.9 -->
+
+## Governance Scope
+
+Governance substrate: repository
+Canonical repository: your-org/your-repo
+GitHub Project board (if applicable):
+Additional repositories:
+
+## What This Project Is
+
+Initiative title: Customer invoice reconciliation automation
+Repository: your-org/invoice-reconciliation
+Authorising decision reference: ACME-2026-0042-A3F9B2C1
+Decision type: conditional
+Governance tier: 2
+GovOps layer version: 0.9
+
+## What This Project Is Trying to Achieve
+
+Problem being solved:
+Manual invoice reconciliation takes 14 days and generates 40% of all
+finance team service complaints.
+
+Outcome targeted:
+Reconciliation completes within 2 working days. Service complaints
+related to reconciliation fall below 10%.
+
+Constraints accepted:
+Must integrate with existing ERP without schema changes.
+Budget ceiling 85,000. Must be live before financial year end.
+
+How success will be measured:
+Reconciliation cycle time under 2 days by month 3 post go-live.
+Service complaint rate measured quarterly.
+
+## Uncertainty Classification
+
+Primary classification: epistemic
+Why: ERP integration interface documented but not tested at actual data
+volume. Data quality assumed good but not independently verified.
+Both are findable through structured discovery before design begins.
+
+## Who Has Authority
+
+Project sponsor: @alice-smith
+Approves scope changes: @alice-smith
+Authorises compliance exceptions: @bob-jones
+Authority to close or pause: @alice-smith
+Rollback authority: @carol-lee
+
+## Compliance Obligations
+
+| Obligation | Source | What the project must do | Owner |
+|---|---|---|---|
+| GDPR data minimisation | Data protection law | Process only invoice references and amounts | @bob-jones |
+| Financial audit trail | Internal audit policy | Every automated match produces a traceable record | @carol-lee |
+
+## Delivery System
+
+Delivery pattern: iterative
+Execution framework: scrum
+Governance cadence: Monthly milestone review at end of every second sprint
+Selection rationale:
+  1. Uncertainty: epistemic -> iterative indicated
+  2. Compliance: medium -> verification built into sprint exit criteria
+  3. Change tolerance: medium -> some flexibility while ERP details established
+  4. Mandate: none -> no departure required
+Approved by: @alice-smith
+Departure from standard: no
+
+## Current Status
+
+Status: active
+Initiative opened: 2026-04-28
+Expected completion: 2026-10-31
+Last updated: 2026-04-28 by @alice-smith
+
+<!-- govops-end -->
+---
+
+Fields validated by governance-init-check:
+  - Governance substrate (must be: repository, github-project, or both)
+  - Canonical repository (must be: org/repo format)
+  - Authorising decision reference (must match: ENTITY-YEAR-SEQUENCE-CHECKSUM)
+  - Decision type (must be: reversible, conditional, or irreversible)
+  - Governance tier (must be: 1, 2, 3, or 4)
+  - Primary classification (must be: aleatory, epistemic, or ambiguity)
+  - Delivery pattern (must be: staged-gate, iterative, parallel-track, or hybrid)
+  - Execution framework (must be: scrum, kanban, prince2, safe, internal, or hybrid)
+  - Governance cadence (must be non-empty)
+  - All authority fields (must name valid GitHub usernames)
+
+If classification is ambiguity: the Ambiguity resolution reference field
+must be populated with a link to a completed alignment record before
+the governance check will pass. The layer blocks execution on ambiguity
+until the objective is agreed. This is intentional.
 
 ---
 
-## Step 2 — Copy and configure govops.yml
+## Step 7b — Create govops.yml
 
-The `govops.yml` file tells the governance layer how your project is
-classified and where its permanent records should be stored.
+Create govops.yml at the repository root.
 
-```bash
-# From your project repository root
-curl -o govops.yml \
-  https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/govops.yml.example
-```
+Download and edit:
+  curl -o govops.yml \
+    https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/govops.yml.example
 
-Or copy it manually from `govops.yml.example` in the governance layer
-repository.
+Minimum required fields:
 
-**Open govops.yml and fill in the required fields.** Every field has
-a plain-language comment explaining what it does. Required fields are
-marked `# REQUIRED`.
+  govops_version: "0.9"
 
-**The first block to fill in — governance scope:**
+  governance_scope:
+    substrate: "repository"
+    canonical_repository: "your-org/your-repo"
+    github_project_url: ""
+    additional_repositories: []
 
-```yaml
-governance_scope:
-  # What GitHub entities does this initiative span?
-  # repository = single repository
-  # github-project = GitHub Projects board (may span multiple repos)
-  # both = Projects board with a designated canonical repository
-  substrate: "repository"
+  initiative:
+    tier: 2
+    decision_class: "conditional"
+    ial_ceiling: 2
+    ial_required_for_merge: 2
+    ial_required_for_deploy: 2
+    rollback_authority: "@carol-lee"
+    production_environment_pattern: "production|prod|release"
 
-  # The repository holding the canonical GOVERNANCE.md
-  canonical_repository: "your-org/your-repo"
+  ledger:
+    endpoint: "https://YOUR-NGROK-URL/v1/events"
+    auth_secret: "LEDGER_API_KEY"
+    chain_id: "your-org-initiative-name-2026"
+    signature_algorithm: "dilithium3"
+    alert_channel: ""
 
-  # Required if substrate is github-project or both:
-  github_project_url: ""
+  portfolio:
+    org_label: "govops-tier-2"
+    health_report_schedule: "0 9 * * 1"
+    portfolio_repo: ""
 
-  # Required if the initiative spans multiple repositories:
-  additional_repositories: []
-```
+  governance:
+    require_uncertainty_classification: true
+    require_milestone_checkpoints: true
+    require_pir: true
+    require_asset_handover: true
+    exception_expiry_days: 14
+    exception_pattern_threshold: 3
 
-**If your initiative is tracked through a GitHub Project board:**
-- Set `substrate` to `github-project` or `both`
-- Provide the board URL in `github_project_url`
-  (format: `https://github.com/orgs/YOUR-ORG/projects/N`)
-- The GOVERNANCE.md in the canonical repository is the single
-  governance record for the entire initiative regardless of how
-  many repositories are involved
-- The suite workflow caller (Step 3) must be added to the canonical
-  repository. Additional repositories in the initiative do not each
-  need their own full govops.yml — they need a minimal GOVERNANCE.md
-  that points back to the canonical record
+  delivery_system:
+    pattern: "iterative"
+    framework: "scrum"
+    framework_description: ""
+    governance_cadence: "Monthly milestone review at end of every second sprint"
+    org_mandate: ""
+    deviation_from_mandate: false
+    deviation_approved_by: ""
+    deviation_rationale: ""
 
-**The core initiative fields:**
+  runners:
+    default: "ubuntu-latest"
 
-```yaml
-# How much governance does this project need?
-initiative:
-  tier: 2                        # 1, 2, 3, or 4
+Two fields require your specific values:
+  ledger.endpoint    : your HTTPS evaluation endpoint URL from Step 2
+  ledger.chain_id    : a unique identifier for this initiative's records
+                       Recommended format: org-initiative-name-year
+                       Example: acme-invoice-reconciliation-2026
+                       Do not change this once set.
 
-  # How easily can the main outcome be undone?
-  decision_class: "conditional"  # reversible, conditional, or irreversible
-
-# Where should permanent governance records be written?
-ledger:
-  endpoint: ""                   # The address of your permanent record system
-  auth_secret: "LEDGER_API_KEY"  # Leave as-is — this references the organisation secret
-  chain_id: "your-org-your-project-2026"  # A unique ID for this project's record chain
-
-# How is this project being delivered?
-delivery_system:
-  pattern: "iterative"           # staged-gate, iterative, parallel-track, or hybrid
-  framework: "scrum"             # scrum, kanban, prince2, safe, internal, or hybrid
-  governance_cadence: "Monthly governance review at end of every second sprint"
-```
-
-**Getting the ledger endpoint:**
-Ask your governance layer administrator for the permanent record system
-endpoint. This is the HTTPS address where governance records will be
-written. You do not need to manage the permanent record system yourself —
-you only need to know its address.
+If using a GitHub Project board (substrate: github-project or both):
+  Set governance_scope.github_project_url to the board URL:
+  Format: https://github.com/orgs/YOUR-ORG/projects/N
 
 ---
 
-## Step 3 — Add the caller workflow
+## Step 7c — Add the caller workflow
 
-Create a new file in your repository at
-`.github/workflows/govops.yml` with the following content:
+Create .github/workflows/govops.yml:
 
-```yaml
-name: GovOps Governance Layer
+  name: GovOps Governance Layer
 
-on:
-  push:
-    branches: [main, release/**]
-  pull_request:
-    types: [opened, synchronize, ready_for_review, closed]
-  milestone:
-    types: [closed]
-  deployment:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 9 * * 1'   # Portfolio health check — every Monday 09:00 UTC
+  on:
+    push:
+      branches: [main, release/**]
+    pull_request:
+      types: [opened, synchronize, ready_for_review, closed]
+    pull_request_review:
+      types: [submitted]
+    milestone:
+      types: [closed]
+    issues:
+      types: [labeled]
+    deployment:
+    deployment_review:
+    workflow_run:
+      workflows: ["*"]
+      types: [completed]
+    check_run:
+      types: [completed]
+    projects_v2:
+      types: [closed]
+    workflow_dispatch:
+    schedule:
+      - cron: '0 9 * * 1'
 
-jobs:
-  govops:
-    uses: GovernanceOperations/projops/.github/workflows/govops-suite.yml@v0.9
-    with:
-      config-path: govops.yml
-    secrets: inherit
-```
-
-Replace `GovernanceOperations/projops` with the actual name of your
-organisation's governance layer repository if it is different.
-
----
-
-## Step 4 — Set up branch protection
-
-Branch protection rules enforce that the governance checks must pass
-before changes can be merged. Without this, the checks run but do not
-block merges — they become advisory rather than mandatory.
-
-Go to your repository **Settings → Branches → Add branch protection rule**:
-
-**Branch name pattern:** `main`
-
-Enable the following:
-- ✅ Require a pull request before merging
-  - ✅ Require approvals: set to 1 (or more based on your project's tier)
-  - ✅ Dismiss stale pull request approvals when new commits are pushed
-- ✅ Require status checks to pass before merging
-  - ✅ Require branches to be up to date before merging
-  - In the search box, add these required status checks (they will
-    appear after the first PR is opened):
-    - `governance-init-check`
-    - `ial-ceiling-check`
-- ✅ Do not allow bypassing the above settings
-
-**Add a protection rule for release branches:**
-
-Repeat the above for the pattern `release/**` if your project uses
-release branches.
-
-**Note on bypasses:** Branch protection bypasses — where an admin
-overrides these rules — are automatically logged by the exception
-logger workflow as governance exceptions. They are not invisible.
+  jobs:
+    govops:
+      uses: GovernanceOperations/projops/.github/workflows/govops-suite.yml@v0.9
+      with:
+        config-path: govops.yml
+      secrets: inherit
 
 ---
 
-## Step 5 — Set up deployment environment protection
+## Step 7d — Copy the issue templates
 
-If your project deploys to a production environment, configure
-environment protection so the operational readiness gate and
-rollback readiness gate activate before deployments.
+  mkdir -p .github/ISSUE_TEMPLATE
 
-Go to your repository **Settings → Environments → New environment**:
+  for template in govops-exception govops-milestone-review \
+                  govops-operational-readiness govops-pir; do
+    curl -o .github/ISSUE_TEMPLATE/${template}.md \
+      https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/.github/ISSUE_TEMPLATE/${template}.md
+  done
 
-1. Create an environment named `production` (or the name that matches
-   your `production_environment_pattern` in govops.yml)
-2. Enable **Required reviewers** and add the person named as your
-   project sponsor or deployment authority
-3. Enable **Wait timer** if your deployment process requires a settling
-   period before go-live
-
-The governance checks (`operational-readiness-gate` and
-`rollback-readiness-gate`) will activate automatically when a
-deployment targets this environment.
+  curl -o ASSET-HANDOVER.md \
+    https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/templates/ASSET-HANDOVER.md
 
 ---
 
-## Step 6 — Create the issue templates
+## Step 7e — Create the required labels
 
-The governance layer uses GitHub issue templates for milestone reviews,
-exception records, operational readiness checklists, post-project
-reviews, and asset handovers. Copy them to your repository:
+  gh auth login
 
-```bash
-# Create the issue template directory if it does not exist
-mkdir -p .github/ISSUE_TEMPLATE
-
-# Copy the templates
-curl -o .github/ISSUE_TEMPLATE/govops-exception.md \
-  https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/.github/ISSUE_TEMPLATE/govops-exception.md
-
-curl -o .github/ISSUE_TEMPLATE/govops-milestone-review.md \
-  https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/.github/ISSUE_TEMPLATE/govops-milestone-review.md
-
-curl -o .github/ISSUE_TEMPLATE/govops-operational-readiness.md \
-  https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/.github/ISSUE_TEMPLATE/govops-operational-readiness.md
-
-curl -o .github/ISSUE_TEMPLATE/govops-pir.md \
-  https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/.github/ISSUE_TEMPLATE/govops-pir.md
-```
-
-The asset handover template goes at the repository root:
-
-```bash
-curl -o ASSET-HANDOVER.md \
-  https://raw.githubusercontent.com/GovernanceOperations/projops/v0.9/templates/ASSET-HANDOVER.md
-```
+  gh label create "govops-exception"       --color "d73a4a" --description "Governance exception record"       --repo your-org/your-repo
+  gh label create "milestone-checkpoint"   --color "e4e669" --description "Milestone governance review"       --repo your-org/your-repo
+  gh label create "operational-readiness"  --color "0075ca" --description "Operational readiness checklist"   --repo your-org/your-repo
+  gh label create "pir"                    --color "0e8a16" --description "Post-project review"                --repo your-org/your-repo
+  gh label create "governance-scope"       --color "5319e7" --description "Issue carries governance obligations" --repo your-org/your-repo
+  gh label create "rollback-tested"        --color "006b75" --description "Rollback procedure has been tested" --repo your-org/your-repo
+  gh label create "portfolio-health"       --color "e4e669" --description "Portfolio health report"            --repo your-org/your-repo
 
 ---
 
-## Step 7 — Set up required labels
+## Step 7f — Commit everything
 
-The governance checks search for issues by label. Create these labels
-in your repository before the checks run:
+  git add GOVERNANCE.md govops.yml ASSET-HANDOVER.md \
+          .github/workflows/govops.yml \
+          .github/ISSUE_TEMPLATE/
+  git commit -m "Connect to GovOps governance layer v0.9
 
-Go to your repository **Issues → Labels → New label**:
+  - GOVERNANCE.md: initiative governance identity record
+  - govops.yml: layer configuration
+  - .github/workflows/govops.yml: governance check caller
+  - Issue templates: exception, milestone review, OR checklist, PIR
+  - ASSET-HANDOVER.md: asset handover template"
+  git push origin main
 
-| Label name | Suggested colour | Purpose |
-|---|---|---|
-| `govops-exception` | Red `#d73a4a` | Marks governance exception records |
-| `milestone-checkpoint` | Orange `#e4e669` | Marks milestone governance reviews |
-| `operational-readiness` | Blue `#0075ca` | Marks operational readiness checklists |
-| `pir` | Green `#0e8a16` | Marks post-project review issues |
-| `governance-scope` | Purple `#5319e7` | Marks issues that carry governance obligations |
-| `rollback-tested` | Teal `#006b75` | Marks confirmation that rollback has been tested |
-| `portfolio-health` | Grey `#e4e669` | Marks portfolio health reports |
+After pushing, go to your repository Actions tab. The GovOps Governance
+Layer workflow should appear and begin running governance-init-check.
+Watch it complete.
 
-To create labels programmatically using the GitHub CLI:
+If it passes: proceed to Step 7g.
 
-```bash
-gh label create "govops-exception" --color "d73a4a" --description "Governance exception record"
-gh label create "milestone-checkpoint" --color "e4e669" --description "Milestone governance review"
-gh label create "operational-readiness" --color "0075ca" --description "Operational readiness checklist"
-gh label create "pir" --color "0e8a16" --description "Post-project review"
-gh label create "governance-scope" --color "5319e7" --description "Issue carries governance obligations"
-gh label create "rollback-tested" --color "006b75" --description "Rollback procedure has been tested"
-gh label create "portfolio-health" --color "e4e669" --description "Portfolio health report"
-```
+If it fails, read the message carefully:
 
----
+  GOVERNANCE.md not found
+    File is not at repository root or filename has wrong case.
 
-## Step 8 — Commit and push
+  Missing field: Authorising decision reference
+    Field is blank or comment text was not replaced.
 
-Commit all the files you have created:
+  Decision Contract reference format invalid
+    Reference must match ENTITY-YEAR-SEQUENCE-CHECKSUM.
+    Example: ACME-2026-0042-A3F9B2C1
 
-```bash
-git add GOVERNANCE.md govops.yml .github/workflows/govops.yml \
-        .github/ISSUE_TEMPLATE/ ASSET-HANDOVER.md
-git commit -m "Connect to GovOps governance layer v0.9
+  Delivery pattern must be one of...
+    Value has a typo or extra whitespace.
 
-- GOVERNANCE.md: project governance identity record
-- govops.yml: layer configuration
-- .github/workflows/govops.yml: governance check caller
-- Issue templates for milestone review, exceptions, OR, PIR
-- ASSET-HANDOVER.md template"
-git push origin main
-```
+  govops.yml not found
+    File is not at repository root.
+
+  Governance substrate must be...
+    substrate field blank or contains an invalid value.
+
+  Uncertainty classified as ambiguity — ambiguity_resolution_ref missing
+    The alignment process has not been completed or the URL was left blank.
+    If alignment is not complete, the block is correct.
 
 ---
 
-## Step 9 — Verify the connection
+## Step 7g — Set up branch protection
 
-Open a pull request with any small change. The governance checks should
-activate as required status checks. Verify:
+Your repository > Settings > Branches > Add branch protection rule
 
-**governance-init-check** passes:
-- If it fails, open the check details for the specific error.
-  The most common causes are missing required fields in GOVERNANCE.md,
-  an incorrectly formatted decision reference, or a delivery system
-  configuration mismatch between govops.yml and GOVERNANCE.md.
+Branch name pattern: main
 
-**Check that governance records are being written:**
-After merging a pull request, ask your governance layer administrator
-to confirm that a record appeared in the permanent record system.
-If no record appears, the `LEDGER_ENDPOINT` secret may not be
-set correctly, or the endpoint may not be reachable from GitHub Actions.
+  [x] Require a pull request before merging
+      [x] Require approvals: 1
+      [x] Dismiss stale pull request approvals when new commits are pushed
 
-**If your initiative uses a GitHub Project board — additional checks:**
+  [x] Require status checks to pass before merging
+      [x] Require branches to be up to date before merging
+      Search and add required status checks:
+        governance-init-check / governance-init-check
+        ial-ceiling-check / ial-ceiling-check
 
-Close a test GitHub Project board and confirm that the pir-trigger
-and asset-handover-validator checks activate and block closure until
-the PIR and asset handover records are complete.
+  [x] Require conversation resolution before merging
+  [x] Do not allow bypassing the above settings
 
-If the trigger does not activate, confirm that:
-- The Ledger Bridge GitHub App is installed at the **organisation** level,
-  not just on individual repositories — `projects_v2` events fire at
-  organisation scope and require organisation-level App installation
-- The `govops.yml` `governance_scope.substrate` field is set to
-  `github-project` or `both`
-- The `governance_scope.github_project_url` field contains a valid
-  project board URL in the format `https://github.com/orgs/ORG/projects/N`
+Status check names only appear in the search box after they have run
+at least once. If they do not appear yet: open a draft pull request,
+wait for the checks to run, then come back to add them.
 
-**Check that the portfolio is discoverable:**
-If your organisation uses the `portfolio_label` field in govops.yml,
-add that label to your repository so the portfolio health aggregator
-can find it.
+Repeat for release/** if your project uses release branches.
 
 ---
 
-## Step 10 — Run your first milestone governance review
+## Step 7h — Set up deployment environment
 
-When you close your first project milestone, the governance check will
-block it and ask for a checkpoint review. This is the check working
-correctly — not an error.
+Your repository > Settings > Environments > New environment
 
-To complete the review:
-1. Go to your repository Issues
-2. Click New issue
-3. Select the "GovOps Milestone Governance Checkpoint" template
-4. Fill in all sections — the template explains each one
-5. At the Decisions section: record a decision OR check the
-   "Continuation confirmed" box with an explicit confirmation statement
+1. Name: production
+2. Enable Required reviewers — add @alice-smith (or your deployment authority)
+3. Click Save protection rules
+
+This activates operational-readiness-gate and rollback-readiness-gate
+for deployments targeting this environment.
+
+---
+
+## Step 7i — Add portfolio label
+
+Your repository > Settings > General > Topics
+Add: govops-tier-2 (matching portfolio.org_label in govops.yml)
+Click Save changes
+
+---
+
+## Step 7j — End-to-end verification
+
+Run all four tests before declaring the connection complete.
+
+Test 1 — Pull request governance:
+1. Create a branch, make any small change, open a pull request
+2. Confirm governance-init-check and ial-ceiling-check appear as
+   required status checks on the PR
+3. Check your terminal — a governance record should appear
+4. Have an IAL register member approve the PR
+5. Merge the PR
+6. Check terminal — a second record of type execute should appear
+
+Test 2 — Milestone checkpoint:
+1. Create a milestone: Issues > Milestones > New milestone > Sprint 1
+2. Close the milestone immediately
+3. The workflow should re-open it with a message
+4. Create a milestone review issue using the GovOps Milestone
+   Governance Checkpoint template
+5. Fill it in — check the Continuation confirmed box
 6. Close the issue
-7. Close the milestone again — it will now close successfully
+7. Close the milestone again — it should now close successfully
+8. Check terminal — a record of type decision should appear
 
-The first time a team completes this process, it often produces a
-useful conversation about what has actually been decided, learned, and
-changed since the last review. That conversation is governance working.
+Test 3 — Exception logging:
+1. Repository Settings > Branches > Edit your branch protection rule
+2. Enable Allow specified actors to bypass required pull requests
+   and add yourself temporarily
+3. Save the rule
+4. Push a commit directly to main — bypassing protection
+5. Check Issues — a govops-exception labelled issue should appear
+6. Remove the bypass rule
+7. Fill in the exception issue rationale and close it
 
----
+Test 4 — Ledger audit:
+  curl https://xxxx.ngrok-free.app/v1/events \
+    -H "Authorization: Bearer your-eval-key" | python3 -m json.tool
 
-## Ongoing usage
+Should return an array of events covering all actions in Tests 1-3.
+Count them — at minimum six records should be present.
 
-**For every pull request:**
-The governance checks run automatically. For most pull requests, they
-pass without any action required beyond the existing code review process.
-
-**For production deployments:**
-Create an operational readiness issue using the template before
-the deployment. Have the responsible person for each condition
-confirm it. Close the issue. The deployment gate will then allow
-the deployment to proceed.
-
-**For every milestone:**
-Create a milestone review issue using the template before or as
-you close the milestone. Complete the review, record a decision
-or continuation confirmation, and close the issue.
-
-**For governance exceptions:**
-When a requirement must be bypassed for operational reasons, the
-exception logger creates the exception record automatically. Open
-the exception issue, fill in the rationale and remediation sections,
-and track it to closure within the expiry date.
-
-**When the project closes:**
-1. Create a PIR issue using the template
-2. Complete the review with the team, sponsor, and at least one
-   person from the receiving operational team
-3. Submit the improvement suggestions to the governance improvement process
-4. Complete the ASSET-HANDOVER.md — name an owner for every output
-5. Get each owner to confirm receipt
-6. Close the PIR issue
-7. The repository can now be archived
+If Test 2 projects_v2 trigger is also needed (GitHub Project board):
+Create a test project board, link issues from your repository,
+close the board. The pir-trigger should activate and block closure.
+Confirm the Ledger Bridge App is installed at organisation level —
+projects_v2 events require this.
 
 ---
 
-## Getting help
+## Full connection status after Step 7
 
-**A check is blocking my work unexpectedly:**
-Read the check's failure message carefully — it explains exactly
-what is needed. Most failures are resolved by completing a template
-or supplying a missing field. If the failure reason is not clear,
-raise an issue in `GovernanceOperations/projops`.
+  GOVERNANCE.md complete and valid           CONFIRMED
+  govops.yml configured                      CONFIRMED
+  Caller workflow active                     CONFIRMED
+  Issue templates installed                  CONFIRMED
+  Labels created                             CONFIRMED
+  Branch protection enforcing checks         CONFIRMED
+  Production environment gated               CONFIRMED
+  Portfolio label set                        CONFIRMED
+  Pull request governance verified           CONFIRMED
+  Milestone checkpoint verified              CONFIRMED
+  Exception logging verified                 CONFIRMED
+  Permanent record receiving events          CONFIRMED
 
-**I need to override a check urgently:**
-Override using your admin account if operationally necessary.
-The exception logger will automatically create an exception record.
-Fill in the rationale and remediation sections in the exception issue
-within 24 hours. An override that is not followed up with a rationale
-is an ungoverned bypass — visible in the portfolio health report.
+---
 
-**I think a governance standard is wrong for this project:**
-Raise a formal delivery system review at your next milestone
-checkpoint. Record it as a governance decision. If the standard
-is systematically wrong across multiple projects, raise it through
-the governance improvement process — not as an individual project
-exception.
+## Day-to-Day Operations
 
-**I have a question about a specific field or term:**
-See [vocabulary.md](vocabulary.md) for plain-language explanations
-of every term. If the answer is not there, raise an issue in
-`GovernanceOperations/projops` to suggest an addition.
+After the connection is verified, governance runs automatically.
+Most days nothing unusual happens and the layer is invisible.
+It becomes visible in four situations.
+
+---
+
+### Situation 1 — A check fails on a pull request
+
+What the team sees: a red status check, merge button greyed out.
+
+What to do: click Details next to the failing check and read the
+message. It is specific. Every failure has a specific resolution.
+
+Common failures after initial connection:
+
+  governance-init-check / GOVERNANCE.md missing required fields
+    Someone edited GOVERNANCE.md and blanked a required field.
+    Find the field, restore a valid value, commit. Check re-runs.
+
+  ial-ceiling-check / Reviewer has IAL 1 but IAL 2 required
+    Approver is not in the IAL register or their entry expired.
+    Add or update their entry in the IAL register and re-request review,
+    or have a different IAL 2 approver review instead.
+
+  governance-init-check / Decision Contract reference format invalid
+    Correct the reference in GOVERNANCE.md to ENTITY-YEAR-SEQUENCE-CHECKSUM.
+
+  governance-init-check / Uncertainty classified as ambiguity
+    The initiative objective is contested. The block is correct.
+    Either complete the alignment process and add the resolution URL,
+    or reclassify the uncertainty if ambiguity was an error.
+
+What not to do: do not use an admin bypass unless there is a genuine
+operational emergency. An admin bypass creates an automatic exception
+record. Use it when necessary, not when inconvenient.
+
+---
+
+### Situation 2 — An exception is logged
+
+What the team sees: a new issue appears in the repository Issues list,
+labelled govops-exception, titled GovOps Exception: [requirement bypassed].
+It is assigned to the person who performed the bypass.
+
+This happens automatically. The issue is pre-populated with bypass details.
+
+What the assigned person does:
+1. Open the exception issue
+2. Fill in the Rationale section — the operational reason the bypass
+   was necessary. Urgency alone is not a rationale.
+3. Fill in the Remediation section — what will restore the requirement
+4. Confirm the expiry date is accurate (default 14 days)
+5. Leave it open until remediation is complete
+6. When remediation is done, check all three closure criteria and close
+
+What the governance authority does:
+Review within 24 hours. If the rationale is not adequate, engage directly.
+An exception with no rationale is a governance gap.
+
+Pattern monitoring:
+If three or more exceptions of the same type accumulate, the portfolio
+health report flags it as a pattern. The response is a standards review —
+ask whether the standard is correctly calibrated. Not enforcement escalation.
+
+---
+
+### Situation 3 — A milestone is closing
+
+What the team sees: the milestone re-opens with the message:
+"Milestone cannot close without a completed governance checkpoint."
+
+What to do:
+1. Issues > New issue > GovOps Milestone Governance Checkpoint template
+2. Fill in all sections:
+   - Which milestone: title and number
+   - Is it still on track: honest answer
+   - Risk status: any risks that have materialised or grown
+   - Delivery system review: is the approach still appropriate?
+   - Governance record currency: is GOVERNANCE.md up to date?
+   - Decision or continuation: one of the two checkboxes must be checked
+3. Close the issue
+4. Close the milestone again — it will now close
+
+What makes a good milestone review:
+
+The decision or continuation must be specific enough that someone
+reading it in six months understands what was confirmed and on what basis.
+
+Acceptable:
+  "Confirmed: this initiative continues within its original mandate,
+  within its accepted risk levels, and within the authority granted
+  at initiation. No scope change. No exceptions granted.
+  Reviewed by @alice-smith on 2026-05-15."
+
+Not acceptable:
+  "Looks good, proceeding."
+
+A milestone review consistently producing empty continuations signals
+the review is not functioning as a genuine accountability checkpoint.
+Raise it at the next governance retrospective.
+
+Delivery system review signals to watch for:
+  governance-theatre     : reviews produce no decisions; same problems
+                           appear repeatedly without resolution
+  compliance-building-up : compliance steps deferred from cycle exit criteria
+  scope-instability      : requirements changing under a locked-scope approach
+  cadence-misalignment   : delivery cycles much more frequent than governance reviews
+
+When any signal appears, raise a formal delivery system review at the
+checkpoint — record it as a decision regardless of outcome.
+
+---
+
+### Situation 4 — A deployment is targeting production
+
+What the team sees: deployment blocked.
+operational-readiness-gate: "No operational readiness checklist found."
+
+What to do before every production deployment:
+1. Issues > New issue > GovOps Operational Readiness Checklist template
+2. Fill in deployment details
+3. Work through each condition with the responsible person:
+
+   Process readiness:
+   The process owner confirms processes are documented and the people
+   who will use them have walked through them — not just read them.
+
+   Technology readiness:
+   The system responsible person confirms stability in a
+   production-equivalent environment and that support documentation
+   is written and accessible.
+
+   People readiness:
+   The workforce responsible person confirms training delivered and
+   comprehension confirmed — not just attendance recorded.
+
+   Compliance readiness:
+   The compliance responsible person confirms all regulatory approvals
+   or notifications obtained and documented.
+
+   Rollback readiness:
+   The rollback authority confirms the procedure exists, has been tested,
+   and they are available and prepared to invoke it.
+
+4. Each person checks their condition box in the issue
+5. All five checked: close the issue
+6. Re-trigger the deployment
+
+For irreversible deployments — rollback readiness gate also activates:
+  A .github/workflows/rollback*.yml file must exist in the repository
+  A rollback-tested labelled issue must be closed within the last 30 days
+  rollback_authority must be named in govops.yml
+
+The gate posts an IAL advisory for irreversible deployments noting
+GitHub's IAL ceiling is 2. If the decision warrants IAL 3 or 4,
+follow docs/ial-out-of-band.md before proceeding.
+
+---
+
+## Regular rhythms
+
+Weekly — automatic (every Monday 09:00 UTC):
+The portfolio health aggregator runs. It scans all repositories
+labelled govops-tier-2 and produces a health report.
+
+Review the report for:
+  Open exceptions past expiry   : need immediate attention
+  Repositories missing GOVERNANCE.md : ungoverned
+  Milestone checkpoint completion below 100% : milestones closing without review
+  Exception patterns : three or more of the same type signals a standards review
+
+Monthly:
+  Initiate milestone reviews proactively before milestones close.
+  Review the last four portfolio health reports as a set — trends are
+  invisible in a single report.
+  Check the IAL register for membership changes.
+
+Quarterly — governance review:
+  Are governance tiers correctly calibrated?
+  Are milestone reviews producing genuine decisions or empty continuations?
+  Are exception patterns telling us something about the standards?
+  Is the delivery system governance working?
+  Is the learning loop closing?
+
+Output: a governance improvement backlog submitted through GOS Section 24.
+Even two or three items per quarter compound over time into a governance
+framework that fits operational reality.
+
+---
+
+## Project closure
+
+When an initiative completes, closes, or is formally ended:
+
+1. Create a PIR issue using the GovOps Post-Project Review template
+2. Complete the review with the team, sponsor, and at least one person
+   from the receiving operational team
+3. Submit improvement suggestions to the governance improvement process
+   — the PIR issue cannot close without this link populated
+4. Complete ASSET-HANDOVER.md:
+   - Name an owner for every output of the initiative
+   - Get each owner to confirm receipt by checking their box
+5. Close the PIR issue
+6. Archive the repository (or close the GitHub Project board)
+   Both PIR and asset handover must pass before closure is allowed
+
+---
+
+## When something unexpected happens
+
+False positive — a check fails on something that should have passed:
+  Do not bypass. Open an issue in GovernanceOperations/projops describing
+  what triggered it, what was expected, what actually happened.
+  This is a bug report against the governance layer. Treat it as such.
+
+Check consistently bypassed by the team:
+  Governance signal, not a compliance failure.
+  Engage to understand why. Raise a standards review if warranted.
+  Address through governance, not enforcement pressure.
+
+Evaluation ledger down because ngrok restarted:
+  Update LEDGER_ENDPOINT secret with new ngrok URL.
+  Note which events were missed during the outage.
+  This is the operational argument for moving to a stable
+  permanent record endpoint before production.
+
+Named authority leaves the organisation:
+  Update GOVERNANCE.md to replace their role.
+  Update govops.yml if they are rollback_authority.
+  Remove from IAL register.
+  Check ASSET-HANDOVER.md for assets they own — reassign immediately.
+  The Ledger Bridge alert will have fired — confirm it was received.
+
+---
+
+## Known gaps to address before production
+
+  1. Ledger Bridge not implemented
+     Impact: continuous event stream missing, workflow-level records only
+     Address: before production governance begins
+
+  2. Evaluation ledger not tamper-evident or immutable
+     Impact: evaluation records cannot be used as production governance records
+     Address: provision production Immutable Ledger before first production decision
+
+  3. Out-of-band IAL hash validation not automated
+     Impact: IAL 3/4 approvals require manual verification
+     Address: before any initiative requires IAL 3+ decisions
+
+  4. govops-config.json schema not fully wired
+     Impact: govops.yml validated structurally, not against full JSON schema
+     Address: v0.9.1 patch, low urgency
 
 ---
 
 ## Quick reference — what triggers what
 
-| What you do | Check that activates | What must be true |
-|---|---|---|
-| Open the first PR | `governance-init-check` | GOVERNANCE.md and govops.yml present and complete |
-| Merge any PR | `pr-governance-event` | Produces a permanent record — no action needed |
-| Someone approves a PR | `ial-ceiling-check` | Approver's identity assurance level meets the requirement |
-| Create or edit a milestone | `uncertainty-classification-check` | Milestone description has an uncertainty classification marker |
-| Close a milestone | `milestone-governance-checkpoint` | A completed checkpoint issue is closed first |
-| Deploy to production | `operational-readiness-gate` | All five readiness conditions confirmed in a closed issue |
-| Deploy something irreversible | `rollback-readiness-gate` | Rollback workflow exists, tested within 30 days, authority named |
-| A check is overridden | `exception-logger` | Exception issue created automatically — fill in rationale |
-| Every Monday | `portfolio-health-aggregator` | Produces health report — no action normally needed |
-| Archive or close project | `pir-trigger` | PIR issue completed and closed first |
-| Archive or close project | `asset-handover-validator` | ASSET-HANDOVER.md complete with all owners confirmed |
+  Open first PR                  : governance-init-check
+  Merge any PR                   : pr-governance-event (permanent record)
+  PR review approval             : ial-ceiling-check
+  Create or edit milestone       : uncertainty-classification-check
+  Close a milestone              : milestone-governance-checkpoint (blocks)
+  Deploy to production           : operational-readiness-gate (blocks)
+  Deploy irreversible change     : rollback-readiness-gate (blocks)
+  Check overridden by admin      : exception-logger (creates exception issue)
+  Every Monday 09:00 UTC         : portfolio-health-aggregator
+  Archive repository             : pir-trigger + asset-handover-validator (blocks)
+  Close GitHub Project board     : pir-trigger + asset-handover-validator (blocks)
 
 ---
 
-## Reference
-
-- [deploying-projops.md](deploying-projops.md) — for governance layer administrators
-- [configuration-reference.md](configuration-reference.md) — all govops.yml fields
-- [vocabulary.md](vocabulary.md) — plain-language guide to every term
-- [ial-out-of-band.md](ial-out-of-band.md) — for decisions requiring high identity assurance
+Reference:
+  deploying-projops.md        Steps 1-6 — layer deployment
+  configuration-reference.md  All govops.yml fields
+  vocabulary.md               Plain-language term guide
+  ial-out-of-band.md          IAL 3 and 4 approval process
+  git-platform-coverage.md    Non-GitHub git hosts
